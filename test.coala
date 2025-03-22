@@ -1,0 +1,8 @@
+#Translational layer for problems into Graph coloring 
+
+
+#Type b is a true or false type, falling into a 2-color space
+problem and_solver takes(b: a, b: b) {
+    let res = b:and(a, b);
+    force res => b:true;
+} 
