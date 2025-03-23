@@ -3,11 +3,13 @@ structure Bit {
         let data = b:xor(a, b);
         let carry = b:and(a, b);
 
-    } -> (b: data, b: carry) = (data, carry)
+    } -> (b, b) = (data, carry)
 
     sub full_adder(b: a, b: b, b: carry) -> (b: sum, b: carry) {
         let (data, carry_out_1) = half_adder(a, b);
         let (sum, carry_out_2) = half_adder(data, carry);
         let carry_out = b:or(carry_out_1, carry_out_2);
-    } -> (b: data, b: carry) = (sum, carry_out)
+    } -> (b, b) = (sum, carry_out)
+
+    
 }
