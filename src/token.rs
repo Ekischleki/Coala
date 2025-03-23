@@ -14,7 +14,6 @@ pub struct Token {
 impl Token {
 
 
-
     pub fn to(&self, end: &Self) -> CodeLocation {
         let start = &self.code_location;
         let end = &end.code_location;
@@ -42,6 +41,10 @@ impl Token {
     pub fn token_type(&self) -> &TokenType {
         &self.token_type
     }
+
+    pub fn into_token_type(self) -> TokenType {
+        self.token_type
+    }
 }
 
 #[derive(Debug, Clone, EnumAsInner, PartialEq, Eq)]
@@ -58,15 +61,20 @@ pub enum TokenType {
 
 pub enum Keyword {
     Let,
-    Problem,
     Takes,
-    Force
+    Force,
+    Own,
+    
+    Problem,
+    Structure,
+    SubStructure,
 }
 #[derive(Debug, Clone, EnumAsInner, PartialEq, Eq)]
 
 pub enum Delimiter {
     Brace(Brace),
     Colon,
+    DoubleColon,
     Comma,
     Semicolon,
     Equals

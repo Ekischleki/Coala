@@ -27,7 +27,10 @@ static KEYWORD_MAPPING: phf::Map<&'static str, &'static TokenType> = phf_map! {
     "takes" => &TokenType::Keyword(Keyword::Takes),
     "let" => &TokenType::Keyword(Keyword::Let),
     "force" => &TokenType::Keyword(Keyword::Force),
+    "own" => &TokenType::Keyword(Keyword::Own),
 
+    "sub" => &TokenType::Keyword(Keyword::SubStructure),
+    "structure" => &TokenType::Keyword(Keyword::Structure),
 
 };
 
@@ -45,6 +48,8 @@ static DELIM_MAPPING: phf::Map<&'static str, &'static TokenType> = phf_map! {
     "]" => &TokenType::Delimiter(Delimiter::Brace(Brace::Square(BraceState::Closed))),
 
     ":" => &TokenType::Delimiter(Delimiter::Colon),
+    "::" => &TokenType::Delimiter(Delimiter::DoubleColon),
+
     ";" => &TokenType::Delimiter(Delimiter::Semicolon),
     "," => &TokenType::Delimiter(Delimiter::Comma),
     "=" => &TokenType::Delimiter(Delimiter::Equals),

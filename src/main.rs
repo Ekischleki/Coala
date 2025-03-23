@@ -14,6 +14,10 @@ pub mod lexer;
 pub mod string_file_reader;
 pub mod token;
 pub mod type_stream;
+pub mod parser;
+pub mod label;
+pub mod graph_label_set;
+pub mod symbol_table;
 
 fn main() {
     let mut file_reader = StringFileReader::new();

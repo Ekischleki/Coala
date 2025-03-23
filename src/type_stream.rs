@@ -52,9 +52,13 @@ impl<T: Debug> TypeStream<T> {
         }
     }
     ///Performs an operation with the upcoming item as input. This can be used as a replacement for `.peek()`
-   pub fn extract<U>(&self, extractor: fn (&T) -> U) -> U {
+    pub fn extract<U>(&self, extractor: fn (&T) -> U) -> U {
         extractor(&self.next.as_ref().expect("Typed stream was empty."))
-   }
+    }
+
+    pub fn peek(&self) -> &Option<T> {
+        &self.next
+    }
 
     pub fn skip(&mut self) {
         _ = self.next();
