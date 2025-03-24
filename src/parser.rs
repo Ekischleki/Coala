@@ -1,15 +1,23 @@
-use crate::{compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, graph_structure_type::{NodeValueSyntax, StructureSymbol, SubCallSyntax}, symbol_table::{ContextSymbolTable, GlobalSymbolTable}, token::{Brace, BraceState, Delimiter, Keyword, Token, TokenType}, type_stream::TypeStream};
+use crate::{compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, graph_structure_type::{NodeValueSyntax, StructureSymbol, SubCallSyntax}, symbol_table::{self, ContextSymbolTable, GlobalSymbolTable}, token::{Brace, BraceState, Delimiter, Keyword, Token, TokenType}, type_stream::TypeStream};
 
 pub struct Parser<'a> {
-    type_stream: TypeStream<Token>,
+    tokens: TypeStream<Token>,
     compilation: &'a mut Compilation,
     symbol_table: GlobalSymbolTable
 }
 
 
-impl Parser<'_> {
+impl<'a> Parser<'a> {
+    fn new(tokens: TypeStream<Token>, compilation: &'a mut Compilation, symbol_table: GlobalSymbolTable) -> Self {
+        Self {
+            tokens,
+            compilation,
+            symbol_table
+        }
+    }
+
     fn parse_file(&mut self) {
-        while let Some(current_token) = self.type_stream.peek() {
+        while let Some(current_token) = self.tokens.peek() {
             match current_token.token_type() {
                 TokenType::Keyword(Keyword::Structure) => {
                 }
@@ -19,8 +27,8 @@ impl Parser<'_> {
     }
 
     fn parse_structure(&mut self) -> Option<StructureSymbol> {
-        let struct_token = self.type_stream.next();
-        let structure_identifier = self.type_stream.next();
+        let struct_token = self.tokens.next();
+        let structure_identifier = self.tokens.next();
         
         if let TokenType::Identifier(name) = structure_identifier.into_token_type() {
             let name = name.to_owned();
@@ -29,7 +37,7 @@ impl Parser<'_> {
             return None;
         }
 
-        let open_curly_delim = self.type_stream.next();
+        let open_curly_delim = self.tokens.next();
         assert!(open_curly_delim.token_type().as_delimiter().unwrap().as_brace().unwrap().as_curly().unwrap().is_open());
         loop {
                         
@@ -45,12 +53,12 @@ impl Parser<'_> {
     }
 
     fn parse_node_value(&mut self, context: &ContextSymbolTable) -> Option<NodeValueSyntax> {
-        let node_value_token = self.type_stream.next();
+        let node_value_token = self.tokens.next();
     
         match node_value_token.token_type() {
-            TokenType::Identifier(structure) if self.type_stream.peek().clone().unwrap().token_type().as_delimiter().unwrap().is_double_colon() => {
-                self.type_stream.next();
-                let sub = self.type_stream.next();
+            TokenType::Identifier(structure) if self.tokens.peek().clone().unwrap().token_type().as_delimiter().unwrap().is_double_colon() => {
+                self.tokens.next();
+                let sub = self.tokens.next();
                 let sub = match sub.token_type() {
                     TokenType::Identifier(n) => n.to_owned(),
                     _ => {
@@ -67,7 +75,7 @@ impl Parser<'_> {
 
             }
             TokenType::Identifier(name) => {
-                return Some(NodeValueSyntax::Variable(self.type_stream.next().into_token_type().into_identifier().unwrap()));
+                return Some(NodeValueSyntax::Variable(self.tokens.next().into_token_type().into_identifier().unwrap()));
             }
             TokenType::Delimiter(Delimiter::Brace(Brace::Round(BraceState::Open))) => {
                 let mut enumeration = vec![];
@@ -79,7 +87,7 @@ impl Parser<'_> {
                         }
 
                     }
-                    let tuple_token = self.type_stream.next();
+                    let tuple_token = self.tokens.next();
                     match tuple_token.token_type() {
                         TokenType::Delimiter(Delimiter::Brace(Brace::Round(BraceState::Closed))) => {
                             return Some(NodeValueSyntax::Tuple(enumeration));

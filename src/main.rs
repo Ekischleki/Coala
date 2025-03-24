@@ -22,10 +22,14 @@ pub mod symbol_table;
 fn main() {
     let mut file_reader = StringFileReader::new();
     let mut compilation = Compilation::new();
-    let file = "./test.coala".into();
+    let file = "./wip.coala".into();
+
     file_reader.reset_to_file(&file).unwrap();
     let tokens = lexer::tokenize(&mut file_reader, &file, &mut compilation);
+    let mut parser = 
+    let parsed 
     println!("{:#?}", compilation.diagnostics());
 
     println!("{:#?}", tokens)
 }
+ 
