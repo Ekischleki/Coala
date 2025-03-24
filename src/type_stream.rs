@@ -56,8 +56,8 @@ impl<T: Debug> TypeStream<T> {
         extractor(&self.next.as_ref().expect("Typed stream was empty."))
     }
 
-    pub fn peek(&self) -> &Option<T> {
-        &self.next
+    pub fn peek(&self) -> Option<&T> {
+        self.next.as_ref()
     }
 
     pub fn skip(&mut self) {

@@ -1,1 +1,1 @@
-b::and(a, b)
+b::not b::and(a, b)

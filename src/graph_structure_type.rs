@@ -1,22 +1,24 @@
 use std::rc::Rc;
 
 use crate::graph_label_set::LabelSet;
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct StructureSymbol {
     subs: Vec<Rc<StructureSubSymbol>>
 
 }
 
 
+#[derive(Default, Debug)]
 
 pub struct StructureSubSymbol {
     args: Vec<ArgumentSyntax>
 
 }
+#[derive( Debug)]
 
 pub enum CodeSyntax {
     Let{
-        variable: Rc<VariableSymbol>,
+        variable: String,
         value: NodeValueSyntax,
     },
     LetUnpack {
@@ -30,6 +32,7 @@ pub enum CodeSyntax {
     Sub(SubCallSyntax),
 
 }
+#[derive(Debug)]
 
 pub enum NodeValueSyntax {
     Tuple(Vec<Self>),
@@ -37,12 +40,14 @@ pub enum NodeValueSyntax {
     Sub(Box<SubCallSyntax>)
 }
 
+#[derive(Default, Debug)]
 
 pub struct VariableSymbol {
     name: String,
     r#type: Rc<LabelSet>
 }
 
+#[derive(Default, Debug)]
 
 pub struct SubCallSyntax {
     pub structure: String,
@@ -52,6 +57,7 @@ pub struct SubCallSyntax {
 
 
 
+#[derive(Default, Debug)]
 
 pub struct ArgumentSyntax {
     name: String,

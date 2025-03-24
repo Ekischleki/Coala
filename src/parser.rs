@@ -1,4 +1,4 @@
-use crate::{compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, graph_structure_type::{NodeValueSyntax, StructureSymbol, SubCallSyntax}, symbol_table::{self, ContextSymbolTable, GlobalSymbolTable}, token::{Brace, BraceState, Delimiter, Keyword, Token, TokenType}, type_stream::TypeStream};
+use crate::{compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, graph_structure_type::{CodeSyntax, NodeValueSyntax, StructureSymbol, SubCallSyntax}, symbol_table::{self, ContextSymbolTable, GlobalSymbolTable}, token::{Brace, BraceState, Delimiter, Keyword, Token, TokenType}, type_stream::TypeStream};
 
 pub struct Parser<'a> {
     tokens: TypeStream<Token>,
@@ -8,7 +8,7 @@ pub struct Parser<'a> {
 
 
 impl<'a> Parser<'a> {
-    fn new(tokens: TypeStream<Token>, compilation: &'a mut Compilation, symbol_table: GlobalSymbolTable) -> Self {
+    pub fn new(tokens: TypeStream<Token>, compilation: &'a mut Compilation, symbol_table: GlobalSymbolTable) -> Self {
         Self {
             tokens,
             compilation,
@@ -16,7 +16,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_file(&mut self) {
+    pub fn parse_file(&mut self) {
         while let Some(current_token) = self.tokens.peek() {
             match current_token.token_type() {
                 TokenType::Keyword(Keyword::Structure) => {
@@ -48,11 +48,26 @@ impl<'a> Parser<'a> {
     }
 
 
-    fn parse_code() {
-        todo!()
+    fn parse_code(&mut self) -> Option<CodeSyntax> {
+        let statement = self.tokens.next();
+        match statement.token_type() {
+            TokenType::Keyword(Keyword::Let) => {
+                let name = self.tokens.next();
+                assert!(name.token_type().is_identifier());
+                let eq = self.tokens.next();
+                assert_eq!(&TokenType::Delimiter(Delimiter::Equals), eq.token_type());
+                let value = self.parse_node_value()?;
+                return Some(CodeSyntax::Let { variable: name.into_token_type().into_identifier().unwrap(), value });
+            }
+
+            _ => {
+                self.compilation.add_diagnostic(Diagnostic::new(DiagnosticType::Error, format!("Unexpected token"), Some(statement.code_location().to_owned()), DiagnosticPipelineLocation::Parsing));
+                return None;
+            }
+        }
     }
 
-    fn parse_node_value(&mut self, context: &ContextSymbolTable) -> Option<NodeValueSyntax> {
+    pub fn parse_node_value(&mut self) -> Option<NodeValueSyntax> {
         let node_value_token = self.tokens.next();
     
         match node_value_token.token_type() {
@@ -65,7 +80,7 @@ impl<'a> Parser<'a> {
                         panic!()
                     }
                 };
-                let application = self.parse_node_value(context).unwrap();
+                let application = self.parse_node_value().unwrap();
                 let syntax = SubCallSyntax {
                     application: Some(application),
                     structure: structure.to_owned(),
@@ -75,12 +90,13 @@ impl<'a> Parser<'a> {
 
             }
             TokenType::Identifier(name) => {
-                return Some(NodeValueSyntax::Variable(self.tokens.next().into_token_type().into_identifier().unwrap()));
+                return Some(NodeValueSyntax::Variable(name.to_owned()));
             }
             TokenType::Delimiter(Delimiter::Brace(Brace::Round(BraceState::Open))) => {
                 let mut enumeration = vec![];
+
                 loop {
-                    match self.parse_node_value(context) {
+                    match self.parse_node_value() {
                         Some(s) => enumeration.push(s),
                         None => {            
                             self.compilation.add_diagnostic(Diagnostic::new(DiagnosticType::Error, format!("Expected )"), None, DiagnosticPipelineLocation::Parsing));
