@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use phf::{phf_map, phf_set};
 
 
-use crate::token::{Brace, BraceState, Delimiter, Keyword};
+use crate::token::{Atom, AtomSub, AtomType, Brace, BraceState, Delimiter, Keyword};
 
 use super::{code_location::CodeLocation, compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, file_reader::{FileReader, FileReaderError}, token::{Token, TokenType}, type_stream::TypeStream};
 
@@ -31,6 +31,12 @@ static KEYWORD_MAPPING: phf::Map<&'static str, &'static TokenType> = phf_map! {
 
     "sub" => &TokenType::Keyword(Keyword::SubStructure),
     "structure" => &TokenType::Keyword(Keyword::Structure),
+
+    "true" => &TokenType::Atom(Atom::Type(AtomType::True)),
+    "false" => &TokenType::Atom(Atom::Type(AtomType::False)),
+
+    "not" => &TokenType::Atom(Atom::Sub(AtomSub::Not)),
+    "or" => &TokenType::Atom(Atom::Sub(AtomSub::Or)),
 
 };
 

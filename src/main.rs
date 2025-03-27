@@ -2,11 +2,13 @@ use std::path::PathBuf;
 
 use compilation::Compilation;
 use file_reader::FileReader;
+use graph_maker::GraphMaker;
 use parser::Parser;
 use string_file_reader::StringFileReader;
 use symbol_table::GlobalSymbolTable;
+use syntax::ProjectSyntax;
 
-pub mod graph_structure_type;
+pub mod syntax;
 pub mod graph_maker;
 pub mod code_location;
 pub mod compilation;
@@ -27,13 +29,18 @@ fn main() {
     let file = "./wip.coala".into();
 
     file_reader.reset_to_file(&file).unwrap();
-    let tokens = lexer::tokenize(&mut file_reader, &file, &mut compilation).unwrap();
+    let mut tokens = lexer::tokenize(&mut file_reader, &file, &mut compilation).unwrap();
     println!("{:#?}", tokens);
-
+    tokens.next();
     let mut parser = Parser::new(tokens, &mut compilation, GlobalSymbolTable {});
-    let parsed = parser.parse_node_value();
+    let parsed = parser.parse_sub().unwrap();
+    let mut graph_maker = GraphMaker::new(ProjectSyntax {
+        collections: vec![],
+        problems: Some(vec![parsed])
+    });
+    graph_maker.compile(&mut compilation);
     println!("{:#?}", compilation.diagnostics());
-    println!("{:#?}", parsed);
+    println!("{:#?}", graph_maker.nodes);
 
 }
  

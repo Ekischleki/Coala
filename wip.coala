@@ -1,1 +1,7 @@
-b::not b::and(a, b)
+sub xor(bool: a, bool: b) {
+    let not_both_true = or(not a, not b)
+    let either_true = or(a, b)
+    let xor = not or(not not_both_true, not either_true)
+    force xor => false
+}
+

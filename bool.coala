@@ -1,0 +1,7 @@
+structure bool {
+    type = {true, false}
+
+    sub and(bool: a, bool: b) {
+        let res = not or(not a, not b)
+    } = res
+}

@@ -54,9 +54,26 @@ pub enum TokenType {
     ThinArrowRight,
     Delimiter(Delimiter),
     Identifier(String),
+    Atom(Atom),
     EOF,
 }
+#[derive(Debug, Clone, EnumAsInner, PartialEq, Eq)]
+pub enum Atom {
+    Type(AtomType),
+    Sub(AtomSub),
+}
 
+#[derive(Debug, Clone, EnumAsInner, PartialEq, Eq)]
+pub enum AtomSub { //Atomic submarine
+    Or,
+    Not
+}
+
+#[derive(Debug, Clone, EnumAsInner, PartialEq, Eq)]
+pub enum AtomType {
+    True,
+    False,
+}
 #[derive(Debug, Clone, EnumAsInner, PartialEq, Eq)]
 
 pub enum Keyword {
