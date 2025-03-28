@@ -36,7 +36,29 @@ pub struct GlobalSymbolTable {
 }
 
 impl GraphMaker {
+    pub fn output_as_adjacency_list(&self, output_count: bool) {
+        if output_count {println!("{}", self.nodes.len());}
+        for node in &self.nodes {
+            let set: HashSet<_> = node.connections.iter().collect();
+            if output_count {print!("{} ", set.len());}
 
+            for &elem in set {
+                print!("{elem} ")
+            }
+            println!()
+        }
+    }
+
+    pub fn output_as_adjacency_matrix(&self) {
+        for node in &self.nodes {
+            let set: HashSet<_> = node.connections.iter().collect();
+
+            for i in 0..self.nodes.len() {
+                print!("{}, ", if set.contains(&i) {1} else {0})
+            }
+            println!()
+        }
+    }
     pub fn compile(&mut self, compilation: &mut Compilation) {
         if let Some(problems) = std::mem::replace(&mut self.project.problems, Some(vec![]))  {
             for problem in problems {

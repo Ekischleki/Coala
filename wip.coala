@@ -1,7 +1,12 @@
 sub xor(bool: a, bool: b) {
-    let not_both_true = or(not a, not b)
-    let either_true = or(a, b)
-    let xor = not or(not not_both_true, not either_true)
-    force xor => false
+    #force not or(a, b) => true
+    #let not_both_true = or(not a, not b)
+    #let either_true = or(a, b)
+    #let xor = not or(not not_both_true, not either_true)
+    #force xor => false
+    let a_and_b = not or (not a, not b)
+    let a_or_b = or(a, b)
+    let xor = not or (a_and_b, not a_or_b)
+    force xor => true
 }
 

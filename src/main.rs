@@ -40,7 +40,10 @@ fn main() {
     });
     graph_maker.compile(&mut compilation);
     println!("{:#?}", compilation.diagnostics());
-    println!("{:#?}", graph_maker.nodes);
+    graph_maker.output_as_adjacency_list(true);
+    graph_maker.output_as_adjacency_matrix();
+
+    //println!("{:#?}", graph_maker.nodes);
 
 }
  
