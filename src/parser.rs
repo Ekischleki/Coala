@@ -3,50 +3,92 @@ use crate::{compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelin
 pub struct Parser<'a> {
     tokens: TypeStream<Token>,
     compilation: &'a mut Compilation,
-    symbol_table: GlobalSymbolTable
+    pub problems: Vec<SubstructureSyntax>,
+    pub collections: Vec<CollectionSyntax> 
 }
 
 
 impl<'a> Parser<'a> {
-    pub fn new(tokens: TypeStream<Token>, compilation: &'a mut Compilation, symbol_table: GlobalSymbolTable) -> Self {
+    pub fn new(tokens: TypeStream<Token>, compilation: &'a mut Compilation) -> Self {
         Self {
             tokens,
             compilation,
-            symbol_table
+            problems: vec![],
+            collections: vec![],
         }
     }
 
-    pub fn parse_file(&mut self) {
-        while let Some(current_token) = self.tokens.peek() {
+    pub fn parse_file(&mut self ) {
+        
+        loop {
+            let current_token = self.tokens.next();
             match current_token.token_type() {
-                TokenType::Keyword(Keyword::Structure) => {
+                TokenType::Keyword(Keyword::Collection) => {
+                    if let Some(c) = self.parse_collection() {
+                        self.collections.push(c);
+                    }
                 }
-                _ => {panic!()}
+                TokenType::Keyword(Keyword::Problem) => {
+                    self.parse_problem();
+                }
+                TokenType::EOF => return,
+                _ => {            
+                    self.compilation.add_diagnostic(Diagnostic::new(DiagnosticType::Error, format!("Unexpected token at file level"), Some(current_token.code_location().to_owned()), DiagnosticPipelineLocation::Parsing));
+                }
             }
         }
     }
 
-    fn parse_structure(&mut self) -> Option<CollectionSyntax> {
-        let struct_token = self.tokens.next();
-        let structure_identifier = self.tokens.next();
+    fn parse_problem(&mut self) {
+        let open_curly_delim = self.tokens.next();
+        assert!(open_curly_delim.token_type().as_delimiter().unwrap().as_brace().unwrap().as_curly().unwrap().is_open());
+        let mut problems = vec![];
+        self.parse_sub_collection(&mut problems);
+        self.problems.append(&mut problems);
+    }
+
+    fn parse_collection(&mut self) -> Option<CollectionSyntax> {
+//        let collection_token = self.tokens.next();
+        let collection_identifier = self.tokens.next();
         
-        if let TokenType::Identifier(name) = structure_identifier.into_token_type() {
-            let name = name.to_owned();
+        let name = if let TokenType::Identifier(name) = collection_identifier.clone().into_token_type() {
+            name.to_owned()
         } else {
-            self.compilation.add_diagnostic(Diagnostic::new(DiagnosticType::Error, format!("Expected Identifier after structure keyword"), Some(struct_token.code_location().to_owned()), DiagnosticPipelineLocation::Parsing));
+            self.compilation.add_diagnostic(Diagnostic::new(DiagnosticType::Error, format!("Expected Identifier after collection keyword"), Some(collection_identifier.code_location().to_owned()), DiagnosticPipelineLocation::Parsing));
             return None;
-        }
+        };
 
         let open_curly_delim = self.tokens.next();
         assert!(open_curly_delim.token_type().as_delimiter().unwrap().as_brace().unwrap().as_curly().unwrap().is_open());
-        loop {
-                        
-        }
+        let mut subs = vec![];
+        self.parse_sub_collection(&mut subs);
+        return Some(CollectionSyntax {
+            subs,
+            name
+        })
 
-
-        todo!()
     }
 
+    fn parse_sub_collection(&mut self, subs: &mut Vec<SubstructureSyntax>) {
+        loop {
+            let cur_token = self.tokens.next();
+            match cur_token.token_type() {
+                TokenType::Delimiter(Delimiter::Brace(Brace::Curly(BraceState::Closed))) => {
+                    return;
+                }
+                TokenType::Keyword(Keyword::SubStructure) => {
+                    if let Some(s) = self.parse_sub() {
+                        subs.push(s);
+                    }
+                }
+                _ => {
+                    self.compilation.add_diagnostic(Diagnostic::new(DiagnosticType::Error, format!("Unexpected token within collection"), Some(cur_token.code_location().to_owned()), DiagnosticPipelineLocation::Parsing));
+                }
+            }
+        
+        }
+    }
+    
     pub fn parse_sub(&mut self) -> Option<SubstructureSyntax> {
         let name = self.tokens.next().into_token_type().into_identifier().unwrap();
         assert_eq!(self.tokens.next().into_token_type(), TokenType::Delimiter(Delimiter::Brace(Brace::Round(BraceState::Open))));
@@ -144,6 +186,26 @@ impl<'a> Parser<'a> {
                 assert_eq!(arrow.into_token_type(), TokenType::ThickArrowRight);
                 let type_syntax = self.parse_type()?;
                 return Some(CodeSyntax::Force { value, type_syntax }); 
+            }
+            TokenType::Identifier(structure) if self.tokens.peek().clone().and_then(|f| f.token_type().as_delimiter()).and_then(|f| if f.is_double_colon() {Some(())} else {None}).is_some() => {
+                self.tokens.next();
+                let sub = self.tokens.next();
+                let sub = match sub.token_type() {
+                    TokenType::Identifier(n) => n.to_owned(),
+                    _ => {
+                        panic!()
+                    }
+                };
+                let application = self.parse_node_value().unwrap();
+                let syntax = SubCallSyntax {
+                    application: Some(application),
+                    location: SubLocation::Structure {
+                        collection: structure.to_owned(),
+                        sub
+                    }
+                };
+                return Some(CodeSyntax::Sub(syntax.into()))
+
             }
             _ => {
                 self.compilation.add_diagnostic(Diagnostic::new(DiagnosticType::Error, format!("Unexpected token"), Some(statement.code_location().to_owned()), DiagnosticPipelineLocation::Parsing));

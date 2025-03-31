@@ -38,14 +38,25 @@ pub struct GlobalSymbolTable {
 impl GraphMaker {
     pub fn output_as_adjacency_list(&self, output_count: bool) {
         if output_count {println!("{}", self.nodes.len());}
+        
         for node in &self.nodes {
             let set: HashSet<_> = node.connections.iter().collect();
-            if output_count {print!("{} ", set.len());}
-
+            if output_count {print!("{}", set.len());}
             for &elem in set {
                 print!("{elem} ")
             }
             println!()
+        }
+    }
+
+    pub fn export_as_csv(&self, buf: &mut String) {
+        for (i, node) in self.nodes.iter().enumerate() {
+            let set: HashSet<_> = node.connections.iter().collect();
+            buf.push_str(&format!("{i}")); 
+            for &elem in set {
+                buf.push_str(&format!(";{elem}"));
+            }
+            buf.push('\n');
         }
     }
 
@@ -190,6 +201,14 @@ pub fn compile_sub(sub_syntax: SubstructureSyntax, graph_maker: &mut GraphMaker,
                         force_type(value, type_syntax, graph_maker);
                     }
                 }
+            }
+            CodeSyntax::Sub(sub_call) => {
+                let application = match  &sub_call.application {
+                    Some(application) => compile_value(application, &context_symbol_table, graph_maker, compilation)?,
+                    None => vec![]
+                };
+    
+                graph_maker.compile_function(&sub_call.location, application, compilation);
             }
             _ => todo!()
         }

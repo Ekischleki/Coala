@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{fs::File, io::Write, path::PathBuf};
 
 use compilation::Compilation;
 use file_reader::FileReader;
@@ -31,18 +31,19 @@ fn main() {
     file_reader.reset_to_file(&file).unwrap();
     let mut tokens = lexer::tokenize(&mut file_reader, &file, &mut compilation).unwrap();
     println!("{:#?}", tokens);
-    tokens.next();
-    let mut parser = Parser::new(tokens, &mut compilation, GlobalSymbolTable {});
-    let parsed = parser.parse_sub().unwrap();
+    let mut parser = Parser::new(tokens, &mut compilation);
+    parser.parse_file();
     let mut graph_maker = GraphMaker::new(ProjectSyntax {
-        collections: vec![],
-        problems: Some(vec![parsed])
+        collections: parser.collections,
+        problems: Some(parser.problems)
     });
     graph_maker.compile(&mut compilation);
     println!("{:#?}", compilation.diagnostics());
-    graph_maker.output_as_adjacency_list(true);
+    graph_maker.output_as_adjacency_list(false);
     graph_maker.output_as_adjacency_matrix();
-
+    let mut buf = String::new();
+    graph_maker.export_as_csv(&mut buf);
+    File::create("./compiled.csv").unwrap().write(buf.as_bytes()).unwrap();
     //println!("{:#?}", graph_maker.nodes);
 
 }

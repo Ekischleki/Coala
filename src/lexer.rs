@@ -24,13 +24,11 @@ static IGNORE_CHARS: phf::Set<char> = phf_set! {
 
 static KEYWORD_MAPPING: phf::Map<&'static str, &'static TokenType> = phf_map! {
     "problem" => &TokenType::Keyword(Keyword::Problem),
-    "takes" => &TokenType::Keyword(Keyword::Takes),
     "let" => &TokenType::Keyword(Keyword::Let),
     "force" => &TokenType::Keyword(Keyword::Force),
-    "own" => &TokenType::Keyword(Keyword::Own),
 
     "sub" => &TokenType::Keyword(Keyword::SubStructure),
-    "structure" => &TokenType::Keyword(Keyword::Structure),
+    "collection" => &TokenType::Keyword(Keyword::Collection),
 
     "true" => &TokenType::Atom(Atom::Type(AtomType::True)),
     "false" => &TokenType::Atom(Atom::Type(AtomType::False)),

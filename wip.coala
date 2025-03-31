@@ -1,12 +1,41 @@
-sub xor(bool: a, bool: b) {
-    #force not or(a, b) => true
-    #let not_both_true = or(not a, not b)
-    #let either_true = or(a, b)
-    #let xor = not or(not not_both_true, not either_true)
-    #force xor => false
-    let a_and_b = not or (not a, not b)
-    let a_or_b = or(a, b)
-    let xor = not or (a_and_b, not a_or_b)
-    force xor => true
+collection bool {
+    sub and(bool: a, bool: b) {} = not bool::nand(a, b)
+    sub nand(bool: a, bool: b) {} = or(not a, not b)
+    sub nor(bool: a, bool: b) {} = not or(a, b)
+    sub xor(bool: a, bool: b) {
+        let not_both_true = bool::nand(a, b)
+        let either_true = or(a, b)
+    } = bool::and(not_both_true, either_true)
+    sub xnor(bool: a, bool: b) {
+        let both_true = bool::and(a, b)
+        let both_false = bool::nor(a, b)
+    } = or(both_true, both_false)
+    sub eq(bool: a, bool: b) {} = bool::xnor(a, b)
+}
+collection bit {
+    sub half_adder(bool: a, bool: b) {
+        let carry = bool::and(a, b)
+        let data = bool::xor(a, b)
+    } = (carry, data)
+}
+collection assert {
+    sub eq(bool: a, bool: b) {
+        force bool::eq(a, b) => true
+    }
+    sub ne(bool: a, bool: b) {
+        force bool::eq(a, b) => false
+    }
+    sub is_true(bool: a) {
+        force a => true
+    }
+    sub is_false(bool: a) {
+        force a => false
+    }
 }
 
+problem {
+    sub equal_problem(bool: a, bool: b, bool: c) {
+        assert::eq(bool::eq(a, b), bool::eq(b, c))
+        let something = bit::half_adder(a, b)
+    }
+}

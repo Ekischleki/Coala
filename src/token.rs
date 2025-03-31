@@ -78,14 +78,12 @@ pub enum AtomType {
 
 pub enum Keyword {
     Let,
-    Takes,
-    Force,
-    Own,
-    
+    Force,    
     Problem,
-    Structure,
+    Solution,
+    Collection,
     SubStructure,
-}
+} //Sorting this by length was not intentional, but lets go
 #[derive(Debug, Clone, EnumAsInner, PartialEq, Eq)]
 
 pub enum Delimiter {
