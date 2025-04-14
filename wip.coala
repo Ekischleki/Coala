@@ -34,8 +34,11 @@ collection assert {
 }
 
 problem {
-    sub equal_problem(bool: a, bool: b, bool: c) {
-        assert::eq(bool::eq(a, b), bool::eq(b, c))
-        let something = bit::half_adder(a, b)
+    sub equal_problem(bool: a, bool: b) {
+        force or(a, bool::and(a, b)) => true
     }
 }
+
+
+
+x - x^3/3! + x^5

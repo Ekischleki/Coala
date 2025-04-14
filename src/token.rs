@@ -69,10 +69,18 @@ pub enum AtomSub { //Atomic submarine
     Not
 }
 
-#[derive(Debug, Clone, EnumAsInner, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, EnumAsInner, PartialEq, Eq)]
 pub enum AtomType {
     True,
     False,
+}
+impl AtomType {
+    pub fn not(self) -> Self {
+        match self {
+            Self::True => Self::False,
+            Self::False => Self::True
+        }
+    }
 }
 #[derive(Debug, Clone, EnumAsInner, PartialEq, Eq)]
 

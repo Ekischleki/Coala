@@ -1,13 +1,9 @@
 use std::{hash::Hash, rc::Rc};
 
+use enum_as_inner::EnumAsInner;
+
 use crate::{graph_label_set::LabelSet, token::{AtomSub, AtomType}};
 
-#[derive(Default, Debug)]
-pub struct ProjectSyntax {
-    pub problems: Option<Vec<SubstructureSyntax>>,
-    pub collections: Vec<CollectionSyntax>
-
-}
 
 #[derive(Default, Debug)]
 pub struct CollectionSyntax {
@@ -57,7 +53,7 @@ pub enum CodeSyntax {
 
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, EnumAsInner)]
 pub enum TypeSyntax {
     Atom(AtomType),
     Defined {

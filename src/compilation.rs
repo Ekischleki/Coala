@@ -1,3 +1,5 @@
+use crate::{code_location::CodeLocation, diagnostic::DiagnosticPipelineLocation};
+
 use super::diagnostic::{Diagnostic, DiagnosticType};
 
 
@@ -9,6 +11,11 @@ pub struct Compilation {
 impl Compilation {
     pub fn add_diagnostic(&mut self, diagnostic: Diagnostic) {
         self.diagnostics.push(diagnostic);
+    }
+
+
+    pub fn add_error(&mut self, message: &str, location: Option<CodeLocation>) {
+        self.add_diagnostic(Diagnostic::new(DiagnosticType::Error, message.to_owned(), location, DiagnosticPipelineLocation::Access));
     }
 
     pub fn is_error_free(&self) -> bool {
