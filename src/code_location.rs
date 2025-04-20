@@ -15,6 +15,7 @@ impl CodeLocation {
         Self::section(self, end)
     }
 
+
     pub fn section(beginning: &Self, end: &Self) -> Self {
         assert_eq!(beginning.path, end.path);
         if beginning.section.is_some() != end.section.is_some() {

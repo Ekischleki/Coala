@@ -2,7 +2,7 @@ use std::{hash::Hash, rc::Rc};
 
 use enum_as_inner::EnumAsInner;
 
-use crate::{graph_label_set::LabelSet, token::{AtomSub, AtomType}};
+use crate::token::{AtomSub, AtomType};
 
 
 #[derive(Default, Debug)]
@@ -41,10 +41,7 @@ pub enum CodeSyntax {
         variable: String,
         value: NodeValueSyntax,
     },
-    LetUnpack {
-        variables: Vec<VariableSymbol>,
-        value: NodeValueSyntax,
-    },
+
     Force {
         value: NodeValueSyntax,
         type_syntax: TypeSyntax,
@@ -72,12 +69,6 @@ pub enum NodeValueSyntax {
     Literal(AtomType)
 }
 
-#[derive(Default, Debug, Clone)]
-
-pub struct VariableSymbol {
-    pub name: String,
-    pub r#type: Rc<LabelSet>
-}
 
 #[derive(Debug, Clone)]
 

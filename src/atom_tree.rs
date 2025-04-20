@@ -2,28 +2,61 @@ use std::{collections::{HashMap, HashSet}, default};
 
 use enum_as_inner::EnumAsInner;
 
-use crate::token::AtomType;
+use crate::{atom_tree_to_graph::Label, compilation::Compilation, token::AtomType};
 #[derive(Debug, Clone, Default)]
 
 pub struct AtomRoot {
-    definitions: HashMap<usize, VarDefinition>,
+    pub definitions: HashMap<usize, VarDefinition>,
     variable_id: usize,
-    value_actions: Vec<(AtomTree, ValueAction)>
+    pub value_actions: Vec<(AtomTree, ValueAction)>
 }
 
 #[derive(Debug, Clone)]
-enum ValueAction {
+pub enum ValueAction {
     Output(String),
     Restriction(AtomType)
 }
 
 impl AtomRoot {
+    //Run after definitions have been simplified 
+    pub fn simp_force(&mut self, compilation: &mut Compilation, changed: &mut bool) {
+        let mut remove_indecies = vec![];
+        for (i, (value, action)) in self.value_actions.iter_mut().enumerate() {
+            if let ValueAction::Restriction(t) = action {
+                match value {
+                    //force not a => atom type <=> force a => not atom type
+                    AtomTree::Not(a) => {
+                        *changed = true;
 
-    pub fn simp_all(&mut self) -> bool {
+                        *t = t.not();
+                        *value = *(a).clone();
+                    }
+                    //something like force true => true
+                    AtomTree::AtomType { atom } => {
+                        if atom == t {
+                            compilation.add_info("Force statement is trivially always successful.", None);
+                            remove_indecies.push(i);
+                        } else {
+                            compilation.add_warning("Force statement makes graph trivially unsolvable.", None);
+                        }
+                    }
+
+                    _ => {}
+                }
+            }
+        }
+        for remove in remove_indecies.iter().rev() {
+            self.value_actions.remove(*remove);
+        }
+    }
+
+    pub fn simp_all(&mut self, compilation: &mut Compilation) -> bool {
         let mut changed = false;
         self.apply_to_all_trees(|t| {
             t.simp_rec(&mut changed)
         });
+        self.simp_force(compilation, &mut changed);
+
         return changed;
     }
 
@@ -54,14 +87,11 @@ impl AtomRoot {
         true
     }
     pub fn inline_vars(&mut self) -> bool {
+        return false; //todo: fix this garbage
         let mut var_uses = HashMap::new();
-        for (id, def) in &self.definitions {
-            def.definition.count_var_use(&mut var_uses);
-            var_uses.insert(*id, 0usize);
-        }
-        for (restriction_val, _) in &self.value_actions {
-            restriction_val.count_var_use(&mut var_uses);
-        }
+        self.apply_to_all_trees(|tree| {tree.count_var_use(&mut var_uses); tree});
+
+       
         let mut inline_definitions: HashMap<usize, Box<AtomTree>> = HashMap::new();
         let mut changed = false;
         for (variable, uses) in var_uses.iter() {
@@ -121,15 +151,15 @@ impl AtomRoot {
 #[derive(Debug, Clone)]
 
 pub struct VarDefinition {
-    id: usize,
-    definition: Box<AtomTree>
+    pub id: usize,
+    pub definition: Box<AtomTree>
 }
 
 
 
 #[derive(EnumAsInner, Debug, Clone, PartialEq)]
 pub enum AtomTree {
-    Null,
+    SeedLabel(Label),
     Variable {
         id: usize,
     },

@@ -1,10 +1,13 @@
-use crate::{compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, symbol_table::{self, ContextSymbolTable, GlobalSymbolTable}, syntax::{ArgumentSyntax, CodeSyntax, NodeValueSyntax, CollectionSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypeSyntax}, token::{Atom, Brace, BraceState, Delimiter, Keyword, Token, TokenType}, type_stream::TypeStream};
+use std::collections::HashMap;
+
+use crate::{code_location::CodeLocation, compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, syntax::{ArgumentSyntax, CodeSyntax, CollectionSyntax, NodeValueSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypeSyntax}, token::{Atom, Brace, BraceState, Delimiter, Keyword, Token, TokenType}, type_stream::TypeStream};
 
 pub struct Parser<'a> {
     tokens: TypeStream<Token>,
     compilation: &'a mut Compilation,
     pub problems: Vec<SubstructureSyntax>,
-    pub collections: Vec<CollectionSyntax> 
+    pub collections: Vec<CollectionSyntax>,
+    pub solutions: HashMap<String, SubCallSyntax>
 }
 
 
@@ -15,6 +18,7 @@ impl<'a> Parser<'a> {
             compilation,
             problems: vec![],
             collections: vec![],
+            solutions: HashMap::default()
         }
     }
 
@@ -23,6 +27,9 @@ impl<'a> Parser<'a> {
         loop {
             let current_token = self.tokens.next();
             match current_token.token_type() {
+                TokenType::Keyword(Keyword::Solution) => 
+                    self.parse_solution(),
+                
                 TokenType::Keyword(Keyword::Collection) => {
                     if let Some(c) = self.parse_collection() {
                         self.collections.push(c);
@@ -67,6 +74,36 @@ impl<'a> Parser<'a> {
             name
         })
 
+    }
+
+    fn parse_solution(&mut self) {
+        let open_block = self.tokens.next();
+        assert_eq!(open_block.token_type(), &TokenType::Delimiter(Delimiter::Brace(Brace::Curly(BraceState::Open))));
+        loop {
+            match self.tokens.peek() {
+                Some(t) => if let TokenType::Delimiter(Delimiter::Brace(Brace::Curly(BraceState::Closed))) = t.token_type() {
+                    break;
+                },
+                None => {
+                    self.compilation.add_error("Expected }, received Eof", None);
+                }
+            }
+            let function_name = self.tokens.next();
+            let ident = match function_name.token_type() {
+                TokenType::Identifier(i) => i,
+                _ => {
+                    self.compilation.add_error("Expected identifier or }", Some(function_name.code_location().to_owned()));
+                    return;
+                }
+            };
+            let application = match self.parse_node_value() {
+                Some(n) => n,
+                None => return
+            };
+            self.solutions.insert(ident.to_owned(), SubCallSyntax { location: SubLocation::Structure { collection: String::new(), sub: ident.to_owned() }, application: Some(application) });
+
+        } 
+        self.tokens.next();
     }
 
     fn parse_sub_collection(&mut self, subs: &mut Vec<SubstructureSyntax>) {

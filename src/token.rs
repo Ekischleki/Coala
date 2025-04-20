@@ -78,7 +78,7 @@ impl AtomType {
     pub fn not(self) -> Self {
         match self {
             Self::True => Self::False,
-            Self::False => Self::True
+            Self::False => Self::True,
         }
     }
 }

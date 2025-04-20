@@ -34,11 +34,14 @@ collection assert {
 }
 
 problem {
-    sub equal_problem(bool: a, bool: b) {
-        force or(a, bool::and(a, b)) => true
+    sub test(bool: a, bool: b) { 
+        assert::eq(a, b)
     }
 }
 
 
+solution {
+    test(true, false)
+}
 
-x - x^3/3! + x^5
+

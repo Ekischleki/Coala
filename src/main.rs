@@ -1,11 +1,11 @@
 use std::{fs::File, io::Write, path::PathBuf};
 
+use atom_tree_to_graph::AtomTreeCompiler;
 use atom_tree_translate::AtomTreeTranslator;
 use compilation::Compilation;
 use file_reader::FileReader;
 use parser::Parser;
 use string_file_reader::StringFileReader;
-use symbol_table::GlobalSymbolTable;
 
 pub mod syntax;
 //pub mod graph_maker;
@@ -18,12 +18,10 @@ pub mod string_file_reader;
 pub mod token;
 pub mod type_stream;
 pub mod parser;
-pub mod label;
-pub mod graph_label_set;
-pub mod symbol_table;
 pub mod atom_tree;
 pub mod atom_tree_translate;
 pub mod atom_tree_to_graph;
+pub mod export;
 
 fn main() {
     let mut file_reader = StringFileReader::new();
@@ -37,18 +35,43 @@ fn main() {
     parser.parse_file();
     let collections = parser.collections;
     let problems = parser.problems;
-    let atom_tree_translator = AtomTreeTranslator::new(compilation, collections);
-    let mut atom_tree = atom_tree_translator.convert(problems);
+    let solutions = parser.solutions;
+    println!("{:#?}", solutions);
+    let atom_tree_translator = AtomTreeTranslator::new(&mut compilation, collections);
+    let mut atom_tree = atom_tree_translator.convert(problems, solutions);
     println!("{:#?}", atom_tree);
 
     while atom_tree.remove_links() {
         println!("{:#?}", atom_tree);
     }
 
-
-    while atom_tree.simp_all() {
+    while atom_tree.inline_vars() {
         println!("{:#?}", atom_tree);
+    } 
+
+    while atom_tree.simp_all(&mut compilation) {
+        println!("{:#?}", atom_tree);
+        while atom_tree.remove_links() {
+            println!("{:#?}", atom_tree);
+        }
+        while atom_tree.inline_vars() {
+            println!("{:#?}", atom_tree);
+        }        
+
     }
+
+    let atom_tree_compiler = AtomTreeCompiler::new(atom_tree);
+    let nodes = atom_tree_compiler.compile();
+    println!("{:#?}", nodes);
+
+    let mut buf_edges = String::new();
+    let mut buf_labels = String::new();
+
+    export::export_as_csv(&nodes, &mut buf_edges, &mut buf_labels);
+    File::create("./compiled_edges.csv").unwrap().write(buf_edges.as_bytes()).unwrap();
+    File::create("./compiled_labels.csv").unwrap().write(buf_labels.as_bytes()).unwrap();
+
+    println!("{:#?}",  compilation.diagnostics())
     
     /* 
     graph_maker.output_as_adjacency_list(false);

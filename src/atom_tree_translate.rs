@@ -1,27 +1,53 @@
 use std::{collections::HashMap, panic::Location};
 
-use crate::{atom_tree::{AtomRoot, AtomTree}, compilation::Compilation, syntax::{ArgumentSyntax, CodeSyntax, CollectionSyntax, NodeValueSyntax, SubCallSyntax, SubLocation, SubstructureSyntax}, token::{Atom, AtomSub}};
+use crate::{atom_tree::{AtomRoot, AtomTree}, atom_tree_to_graph::Label, compilation::Compilation, syntax::{ArgumentSyntax, CodeSyntax, CollectionSyntax, NodeValueSyntax, SubCallSyntax, SubLocation, SubstructureSyntax}, token::{Atom, AtomSub}};
 
-pub struct AtomTreeTranslator {
+pub struct AtomTreeTranslator<'a> {
     pub collections: Vec<CollectionSyntax>,
     pub atom_tree: AtomRoot,
-    pub compilation: Compilation
+    pub compilation: &'a  mut Compilation
 }
 
-impl AtomTreeTranslator {
-    pub fn new(comp: Compilation, collections: Vec<CollectionSyntax>) -> Self {
+impl<'a> AtomTreeTranslator<'a> {
+    pub fn new(comp: &'a mut Compilation, collections: Vec<CollectionSyntax>) -> Self {
         Self {
             compilation: comp,
             collections,
             atom_tree: AtomRoot::default()
         }
     }
-    pub fn convert(mut self, problems: Vec<SubstructureSyntax>) -> AtomRoot {
+    pub fn convert(mut self, problems: Vec<SubstructureSyntax>, solutions: HashMap<String, SubCallSyntax>) -> AtomRoot {
 
         for problem in problems {
             let mut input = vec![];
-            for _ in &problem.args {
-                let in_var = self.atom_tree.define_new_var(AtomTree::Null);
+            let solution = match solutions.get(&problem.name) {
+                Some(s) if s.application.is_some() => {
+                    let application = s.application.as_ref().unwrap();
+                    match application {
+                        NodeValueSyntax::Literal(l) => {
+                            vec![l.to_owned().into()]
+                        }
+                        NodeValueSyntax::Tuple(t) => {
+                            t.iter().map(|syntax| {
+                                if let NodeValueSyntax::Literal(l) = syntax {
+                                    l.to_owned().into()
+                                } else {
+                                    self.compilation.add_error("Expected tuple of literals", None);
+                                    Label::Null
+                                }
+                            }).collect()
+                        }
+                        _ => {
+                            self.compilation.add_warning("Internal error compiling problem with solution", None);
+                            vec![Label::Null; problem.args.len()]
+                        }
+                    }
+                }
+                
+                _ => vec![Label::Null; problem.args.len()],
+            };
+            for (arg, sln) in problem.args.iter().zip(solution.iter()) {
+                let in_var = self.atom_tree.define_new_var(AtomTree::SeedLabel(*sln));
                 input.push(AtomTree::Variable { id: in_var });
             }
             self.compile_substructure(&problem, input);
