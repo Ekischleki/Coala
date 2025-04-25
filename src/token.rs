@@ -50,8 +50,7 @@ impl Token {
 #[derive(Debug, Clone, EnumAsInner, PartialEq, Eq)]
 pub enum TokenType {
     Keyword(Keyword),
-    ThickArrowRight,
-    ThinArrowRight,
+    
     Delimiter(Delimiter),
     Identifier(String),
     Atom(Atom),
@@ -97,20 +96,22 @@ pub enum Keyword {
 #[derive(Debug, Clone, EnumAsInner, PartialEq, Eq)]
 
 pub enum Delimiter {
-    Brace(Brace),
+    Brace(Brace, BraceState),
     Colon,
     DoubleColon,
     Comma,
     Period,
     Semicolon,
-    Equals
+    Equals,
+    ThickArrowRight,
+    ThinArrowRight,
 }
-#[derive(Debug, Clone, EnumAsInner, PartialEq, Eq)]
+#[derive(Debug, Clone, EnumAsInner, PartialEq, Eq, Copy)]
 
 pub enum Brace {
-    Round(BraceState),
-    Curly(BraceState),
-    Square(BraceState)
+    Round,
+    Curly,
+    Square
 }
 
 #[derive(Debug, Clone, EnumAsInner, PartialEq, Eq)]

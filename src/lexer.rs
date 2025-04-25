@@ -43,17 +43,17 @@ static KEYWORD_MAPPING: phf::Map<&'static str, &'static TokenType> = phf_map! {
 };
 
 static DELIM_MAPPING: phf::Map<&'static str, &'static TokenType> = phf_map! {
-    "->" => &TokenType::ThinArrowRight,
-    "=>" => &TokenType::ThickArrowRight,
+    "->" => &TokenType::Delimiter(Delimiter::ThinArrowRight),
+    "=>" => &TokenType::Delimiter(Delimiter::ThickArrowRight),
 
-    "(" => &TokenType::Delimiter(Delimiter::Brace(Brace::Round(BraceState::Open))),
-    ")" => &TokenType::Delimiter(Delimiter::Brace(Brace::Round(BraceState::Closed))),
+    "(" => &TokenType::Delimiter(Delimiter::Brace(Brace::Round, BraceState::Open)),
+    ")" => &TokenType::Delimiter(Delimiter::Brace(Brace::Round, BraceState::Closed)),
 
-    "{" => &TokenType::Delimiter(Delimiter::Brace(Brace::Curly(BraceState::Open))),
-    "}" => &TokenType::Delimiter(Delimiter::Brace(Brace::Curly(BraceState::Closed))),
+    "{" => &TokenType::Delimiter(Delimiter::Brace(Brace::Curly, BraceState::Open)),
+    "}" => &TokenType::Delimiter(Delimiter::Brace(Brace::Curly, BraceState::Closed)),
 
-    "[" => &TokenType::Delimiter(Delimiter::Brace(Brace::Square(BraceState::Open))),
-    "]" => &TokenType::Delimiter(Delimiter::Brace(Brace::Square(BraceState::Closed))),
+    "[" => &TokenType::Delimiter(Delimiter::Brace(Brace::Square, BraceState::Open)),
+    "]" => &TokenType::Delimiter(Delimiter::Brace(Brace::Square, BraceState::Closed)),
 
     ":" => &TokenType::Delimiter(Delimiter::Colon),
     "::" => &TokenType::Delimiter(Delimiter::DoubleColon),

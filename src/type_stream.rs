@@ -20,7 +20,9 @@ impl<T: Debug> Iterator for TypeStream<T> {
 }
 
 impl<T: Debug> TypeStream<T> {
-
+    pub fn is_empty(&self) -> bool {
+        self.next.is_none()
+    }
     pub fn new(tokens: Vec<T>) -> Self{
 
         Self::from_iter(tokens.into_iter())

@@ -1,18 +1,20 @@
 use std::{collections::HashMap, panic::Location};
 
-use crate::{atom_tree::{AtomRoot, AtomTree}, atom_tree_to_graph::Label, compilation::Compilation, syntax::{TypedIdentifierSyntax, CodeSyntax, CollectionSyntax, NodeValueSyntax, SubCallSyntax, SubLocation, SubstructureSyntax}, token::{Atom, AtomSub}};
+use crate::{atom_tree::{AtomRoot, AtomTree}, atom_tree_to_graph::Label, compilation::Compilation, syntax::{CodeSyntax, CollectionSyntax, CompositeTypeSyntax, NodeValueSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypedIdentifierSyntax}, token::{Atom, AtomSub}};
 
 pub struct AtomTreeTranslator<'a> {
     pub collections: Vec<CollectionSyntax>,
     pub atom_tree: AtomRoot,
-    pub compilation: &'a  mut Compilation
+    pub compilation: &'a  mut Compilation,
+    pub composites: Vec<CompositeTypeSyntax>
 }
 
 impl<'a> AtomTreeTranslator<'a> {
-    pub fn new(comp: &'a mut Compilation, collections: Vec<CollectionSyntax>) -> Self {
+    pub fn new(comp: &'a mut Compilation, collections: Vec<CollectionSyntax>, composites: Vec<CompositeTypeSyntax>) -> Self {
         Self {
             compilation: comp,
             collections,
+            composites,
             atom_tree: AtomRoot::default()
         }
     }

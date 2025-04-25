@@ -97,7 +97,7 @@ pub struct TypedIdentifierSyntax {
 }
 
 #[derive( Debug, Clone)]
-pub struct Composite {
+pub struct CompositeTypeSyntax {
     pub name: String,
     pub fields: Vec<TypedIdentifierSyntax>
 }

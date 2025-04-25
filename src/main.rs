@@ -22,6 +22,7 @@ pub mod atom_tree;
 pub mod atom_tree_translate;
 pub mod atom_tree_to_graph;
 pub mod export;
+pub mod block_parser;
 
 fn main() {
     let mut file_reader = StringFileReader::new();
@@ -31,13 +32,25 @@ fn main() {
     file_reader.reset_to_file(&file).unwrap();
     let mut tokens = lexer::tokenize(&mut file_reader, &file, &mut compilation).unwrap();
     println!("{:#?}", tokens);
-    let mut parser = Parser::new(tokens, &mut compilation);
-    parser.parse_file();
+
+    let mut tokens = block_parser::TokenBlock::from_token_stream(tokens, &mut compilation).unwrap();
+    println!("{:#?}", tokens);
+
+    let mut parser = Parser::new(&mut compilation);
+    parser.parse_file(&mut tokens);
     let collections = parser.collections;
+    println!("Collections: {:#?}", collections);
+
     let problems = parser.problems;
+    println!("Problems: {:#?}", problems);
+
     let solutions = parser.solutions;
-    println!("{:#?}", solutions);
-    let atom_tree_translator = AtomTreeTranslator::new(&mut compilation, collections);
+    println!("Solutions: {:#?}", solutions);
+
+    let composites = parser.composite_types;
+    println!("Composites: {:#?}", composites);
+
+    let atom_tree_translator = AtomTreeTranslator::new(&mut compilation, collections, composites);
     let mut atom_tree = atom_tree_translator.convert(problems, solutions);
     println!("{:#?}", atom_tree);
 
