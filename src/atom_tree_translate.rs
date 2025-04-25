@@ -1,6 +1,6 @@
 use std::{collections::HashMap, panic::Location};
 
-use crate::{atom_tree::{AtomRoot, AtomTree}, atom_tree_to_graph::Label, compilation::Compilation, syntax::{ArgumentSyntax, CodeSyntax, CollectionSyntax, NodeValueSyntax, SubCallSyntax, SubLocation, SubstructureSyntax}, token::{Atom, AtomSub}};
+use crate::{atom_tree::{AtomRoot, AtomTree}, atom_tree_to_graph::Label, compilation::Compilation, syntax::{TypedIdentifierSyntax, CodeSyntax, CollectionSyntax, NodeValueSyntax, SubCallSyntax, SubLocation, SubstructureSyntax}, token::{Atom, AtomSub}};
 
 pub struct AtomTreeTranslator<'a> {
     pub collections: Vec<CollectionSyntax>,
@@ -56,7 +56,7 @@ impl<'a> AtomTreeTranslator<'a> {
         self.atom_tree
     }
 
-    pub fn map_args(&mut self, mut input_args: Vec<AtomTree>, map_args: &Vec<ArgumentSyntax>, map: &mut HashMap<String, usize>) {
+    pub fn map_args(&mut self, mut input_args: Vec<AtomTree>, map_args: &Vec<TypedIdentifierSyntax>, map: &mut HashMap<String, usize>) {
         assert_eq!(map_args.len(), input_args.len());
     
         for i in (0..map_args.len()).rev() {
@@ -142,6 +142,9 @@ impl<'a> AtomTreeTranslator<'a> {
     pub fn compile_value(&mut self, value: &NodeValueSyntax, variables: &HashMap<String, usize>) -> Option<Vec<AtomTree>> {
 
         match value {
+            NodeValueSyntax::Access(a) => {
+                todo!()
+            }
             NodeValueSyntax::Literal(atom) => {
                 Some(vec![AtomTree::AtomType { atom: *atom }])
             }
@@ -170,4 +173,10 @@ impl<'a> AtomTreeTranslator<'a> {
         }
 
     }
+}
+
+pub enum ValueCollection {
+    Single(AtomTree),
+    Tuple(Vec<Self>),
+
 }

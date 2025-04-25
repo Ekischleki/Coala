@@ -22,7 +22,7 @@ collection assert {
     sub eq(bool: a, bool: b) {
         force bool::eq(a, b) => true
     }
-    sub ne(bool: a, bool: b) {
+    sub neq(bool: a, bool: b) {
         force bool::eq(a, b) => false
     }
     sub is_true(bool: a) {
@@ -33,15 +33,20 @@ collection assert {
     }
 }
 
+composite ArithmeticResult {
+    bool: data,
+    bool: carry
+}
+
 problem {
     sub test(bool: a, bool: b) { 
-        assert::eq(a, b)
+        force bool::and(a, b) => true
     }
 }
 
 
 solution {
-    test(true, false)
+    test(true, true)
 }
 
 

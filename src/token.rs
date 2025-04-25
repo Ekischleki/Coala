@@ -55,6 +55,7 @@ pub enum TokenType {
     Delimiter(Delimiter),
     Identifier(String),
     Atom(Atom),
+    Integer(usize),
     EOF,
 }
 #[derive(Debug, Clone, EnumAsInner, PartialEq, Eq)]
@@ -89,6 +90,7 @@ pub enum Keyword {
     Force,    
     Problem,
     Solution,
+    Composite,
     Collection,
     SubStructure,
 } //Sorting this by length was not intentional, but lets go
@@ -99,6 +101,7 @@ pub enum Delimiter {
     Colon,
     DoubleColon,
     Comma,
+    Period,
     Semicolon,
     Equals
 }

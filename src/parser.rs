@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{code_location::CodeLocation, compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, syntax::{ArgumentSyntax, CodeSyntax, CollectionSyntax, NodeValueSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypeSyntax}, token::{Atom, Brace, BraceState, Delimiter, Keyword, Token, TokenType}, type_stream::TypeStream};
+use crate::{code_location::CodeLocation, compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, syntax::{TypedIdentifierSyntax, CodeSyntax, CollectionSyntax, NodeValueSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypeSyntax}, token::{Atom, Brace, BraceState, Delimiter, Keyword, Token, TokenType}, type_stream::TypeStream};
 
 pub struct Parser<'a> {
     tokens: TypeStream<Token>,
@@ -38,6 +38,9 @@ impl<'a> Parser<'a> {
                 TokenType::Keyword(Keyword::Problem) => {
                     self.parse_problem();
                 }
+                TokenType::Keyword(Keyword::Composite) => {
+                    self.parse_composite();
+                }
                 TokenType::EOF => return,
                 _ => {            
                     self.compilation.add_diagnostic(Diagnostic::new(DiagnosticType::Error, format!("Unexpected token at file level"), Some(current_token.code_location().to_owned()), DiagnosticPipelineLocation::Parsing));
@@ -45,7 +48,17 @@ impl<'a> Parser<'a> {
             }
         }
     }
+    fn parse_composite(&mut self) {
+        let identifier = self.tokens.next();
+        let identifier =
+        if let TokenType::Identifier(n) =  identifier.token_type() {
+            n.to_owned()
+        } else {
+            self.compilation.add_error("Expected Identifier", Some(identifier.code_location().to_owned()));
+            "".into()
+        };
 
+    }
     fn parse_problem(&mut self) {
         let open_curly_delim = self.tokens.next();
         assert!(open_curly_delim.token_type().as_delimiter().unwrap().as_brace().unwrap().as_curly().unwrap().is_open());
@@ -142,7 +155,7 @@ impl<'a> Parser<'a> {
         Some(SubstructureSyntax { name, args, code, result })
     }
 
-    pub fn parse_arguments(&mut self) -> Option<Vec<ArgumentSyntax>> {
+    pub fn parse_arguments(&mut self) -> Option<Vec<TypedIdentifierSyntax>> {
         let mut enumeration = vec![];
 
         loop {
@@ -157,7 +170,7 @@ impl<'a> Parser<'a> {
             let colon = self.tokens.next();
             assert_eq!(colon.token_type(), &TokenType::Delimiter(Delimiter::Colon));
             let name = self.tokens.next().into_token_type().into_identifier().unwrap();
-            enumeration.push(ArgumentSyntax {type_syntax, name});
+            enumeration.push(TypedIdentifierSyntax {type_syntax, name});
             let tuple_token = self.tokens.next();
             match tuple_token.token_type() {
                 TokenType::Delimiter(Delimiter::Brace(Brace::Round(BraceState::Closed))) => {
@@ -177,7 +190,7 @@ impl<'a> Parser<'a> {
         let token = self.tokens.next();
         match token.token_type() {
             TokenType::Atom(Atom::Type(t)) => return Some(TypeSyntax::Atom(t.to_owned())),
-            TokenType::Identifier(s) => return Some(TypeSyntax::Defined { structure: s.to_owned() }),
+            TokenType::Identifier(s) => return Some(TypeSyntax::Composite { name: s.to_owned() }),
             _ => {
                 self.compilation.add_diagnostic(Diagnostic::new(DiagnosticType::Error, format!("Expected type"), Some(token.code_location().to_owned()), DiagnosticPipelineLocation::Parsing));
                 return None;
@@ -258,6 +271,7 @@ impl<'a> Parser<'a> {
             TokenType::Atom(Atom::Type(t)) => {
                 return Some(NodeValueSyntax::Literal(t.to_owned()))
             }
+
             TokenType::Identifier(structure) if self.tokens.peek().clone().and_then(|f| f.token_type().as_delimiter()).and_then(|f| if f.is_double_colon() {Some(())} else {None}).is_some() => {
                 self.tokens.next();
                 let sub = self.tokens.next();
@@ -287,7 +301,12 @@ impl<'a> Parser<'a> {
                 return Some(NodeValueSyntax::Sub(syntax.into()))
 
             }
+            TokenType::Identifier(base) if self.tokens.peek().clone().and_then(|f| f.token_type().as_delimiter()).and_then(|f| if f.is_period() {Some(())} else {None}).is_some() => {
+                todo!();
+                return Some(NodeValueSyntax::Variable(base.to_owned()));
+            }
             TokenType::Identifier(name) => {
+
                 return Some(NodeValueSyntax::Variable(name.to_owned()));
             }
             TokenType::Delimiter(Delimiter::Brace(Brace::Round(BraceState::Open))) => {

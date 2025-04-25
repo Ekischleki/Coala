@@ -1,4 +1,4 @@
-use std::{hash::Hash, rc::Rc};
+use std::{collections::HashMap, hash::Hash, rc::Rc};
 
 use enum_as_inner::EnumAsInner;
 
@@ -16,7 +16,7 @@ pub struct CollectionSyntax {
 
 pub struct SubstructureSyntax {
     pub name: String,
-    pub args: Vec<ArgumentSyntax>,
+    pub args: Vec<TypedIdentifierSyntax>,
     pub code: Vec<CodeSyntax>,
     pub result: Option<NodeValueSyntax>
 }
@@ -50,14 +50,17 @@ pub enum CodeSyntax {
 
 }
 
+
+
+
 #[derive(Debug, Clone, EnumAsInner)]
 pub enum TypeSyntax {
     Atom(AtomType),
-    Defined {
-        structure: String
-    },
     Set {
         elements: Vec<TypeSyntax>
+    },
+    Composite {
+        name: String,
     }
 }
 #[derive(Debug, Clone)]
@@ -65,6 +68,7 @@ pub enum TypeSyntax {
 pub enum NodeValueSyntax {
     Tuple(Vec<Self>),
     Variable(String),
+    Access(Vec<String>),
     Sub(Box<SubCallSyntax>),
     Literal(AtomType)
 }
@@ -87,7 +91,13 @@ pub enum SubLocation {
 
 #[derive( Debug, Clone)]
 
-pub struct ArgumentSyntax {
+pub struct TypedIdentifierSyntax {
     pub name: String,
     pub type_syntax: TypeSyntax
+}
+
+#[derive( Debug, Clone)]
+pub struct Composite {
+    pub name: String,
+    pub fields: Vec<TypedIdentifierSyntax>
 }

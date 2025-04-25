@@ -31,6 +31,8 @@ static KEYWORD_MAPPING: phf::Map<&'static str, &'static TokenType> = phf_map! {
 
     "sub" => &TokenType::Keyword(Keyword::SubStructure),
     "collection" => &TokenType::Keyword(Keyword::Collection),
+    "composite" => &TokenType::Keyword(Keyword::Composite),
+
 
     "true" => &TokenType::Atom(Atom::Type(AtomType::True)),
     "false" => &TokenType::Atom(Atom::Type(AtomType::False)),
@@ -58,6 +60,8 @@ static DELIM_MAPPING: phf::Map<&'static str, &'static TokenType> = phf_map! {
 
     ";" => &TokenType::Delimiter(Delimiter::Semicolon),
     "," => &TokenType::Delimiter(Delimiter::Comma),
+    "." => &TokenType::Delimiter(Delimiter::Period),
+
     "=" => &TokenType::Delimiter(Delimiter::Equals),
 
 };
@@ -148,21 +152,21 @@ pub fn tokenize<T: FileReader>(file_reader: &mut T, current_file: &PathBuf, comp
 
 fn read_text<T: FileReader>(file_reader: &mut T, current_file: &PathBuf) -> Result<Token, Diagnostic> {
     let first_char = file_reader.peek_char().expect("Unexpected file reader error");
-    /*if first_char.is_ascii_digit() || first_char == '-' {
+    if first_char.is_ascii_digit() {
         read_number(file_reader, current_file)
-    } else */
+    } else 
     if first_char.is_alphanumeric() {
         read_keyword(file_reader, current_file)
     } else {
         read_delim(file_reader, current_file)
     }
 }
-/*
+
 fn read_number(file_reader: &mut dyn FileReader, current_file: &PathBuf) -> Result<Token, Diagnostic> {
     let start_char = file_reader.get_position();
     let mut number = String::new();
     let mut number_char = file_reader.read_char().expect("Unintended file reading error.");
-    while number_char.is_ascii_digit() || number_char == '-' {
+    while number_char.is_ascii_digit() {
         if IGNORE_CHARS.contains(&number_char) {
             break;
         }
@@ -179,105 +183,28 @@ fn read_number(file_reader: &mut dyn FileReader, current_file: &PathBuf) -> Resu
     }
     file_reader.set_position(file_reader.get_position() - 1); //This should in theory not cause an underflow exception
 
-    let token_type = find_smallest_type(number, 
-        CodeLocation::with_section(
-            current_file.to_owned(),
-            start_char,
-            file_reader.get_position()))?;
+    let parsed_int = number.parse();
+    let location = CodeLocation::with_section(
+        current_file.to_owned(),
+        start_char,
+        file_reader.get_position());
+
+    let parsed_int = match parsed_int {
+        Ok(u) => u,
+        Err(e) => {
+            return Err(Diagnostic::new(DiagnosticType::Error, format!("Couldn't parse integer: {e}"), Some(location), DiagnosticPipelineLocation::Lexing))
+        }
+    }; 
+
+   let token_type = TokenType::Integer(parsed_int);
 
     return Ok(Token::new(
         token_type,
-        CodeLocation::with_section(
-            current_file.to_owned(),
-            start_char,
-            file_reader.get_position())
+        location
     ));
 }
 
-fn bit_length_with_sign(big_int: &BigInt) -> u64 {
-    let bit_length = big_int.bits();
-    match big_int.sign() {
-        Sign::Minus => {
-            bit_length + 1
-        },
-        Sign::Plus => {
-            bit_length
-        },
-        Sign::NoSign => {1}
-    }
-}
 
-fn find_smallest_type(number: String, code_location: CodeLocation) -> Result<TokenType, Diagnostic> {
-
-    if number.contains('.') {
-        todo!("Floating point numbers")
-    }
-
-    let integer;
-
-    match BigInt::from_str(&number) {
-        Ok(bi) => {
-            integer = bi;
-        }
-        Err(_) => {
-            return Err(Diagnostic::new(
-                DiagnosticType::Error,
-                "Unable to parse integer".to_owned(),
-                Some(code_location),
-                DiagnosticPipelineLocation::Lexing
-            ));
-        }
-    }
-
-    let bit_length = bit_length_with_sign(&integer);
-    let is_positive = integer.ge(&BigInt::from(0));
-
-
-    match bit_length {
-        0..=8 => {
-            if is_positive {
-                return Ok(TokenType::ConstValue(ConstValue::U8(integer.try_into().unwrap())));
-            } else {
-                return Ok(TokenType::ConstValue(ConstValue::I8(integer.try_into().unwrap())));
-            }
-        },
-        /*
-        9..=16 => {
-            if is_positive {
-                return Ok(TokenType::U16(integer.try_into().unwrap()));
-            } else {
-                return Ok(TokenType::I16(integer.try_into().unwrap()));
-            }
-        },
-        17..=32 => {
-            if is_positive {
-                return Ok(TokenType::U32(integer.try_into().unwrap()));
-            } else {
-                return Ok(TokenType::I32(integer.try_into().unwrap()));
-            }
-        }
-        33..=64 => {
-            if is_positive {
-                return Ok(TokenType::U64(integer.try_into().unwrap()));
-            } else {
-                return Ok(TokenType::I64(integer.try_into().unwrap()));
-            }
-        }
-        _ => {
-            return Ok(TokenType::BigInt(integer));
-        }
-            */
-        _ => {
-            return Err(Diagnostic::new(
-                DiagnosticType::Error,
-                "Integer is too big for current system.".to_owned(),
-                Some(code_location),
-                DiagnosticPipelineLocation::Lexing
-            ));
-        }
-    }
-}
- */
 fn read_delim<T: FileReader>(file_reader: &mut T, current_file: &PathBuf) -> Result<Token, Diagnostic> {
     let start_char = file_reader.get_position();
     let mut delim = String::with_capacity(2);
