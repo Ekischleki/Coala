@@ -21,15 +21,23 @@ impl AtomRoot {
     //Run after definitions have been simplified 
     pub fn simp_force(&mut self, compilation: &mut Compilation, changed: &mut bool) {
         let mut remove_indecies = vec![];
+        let mut add_items = vec![];
         for (i, (value, action)) in self.value_actions.iter_mut().enumerate() {
             if let ValueAction::Restriction(t) = action {
                 match value {
                     //force not a => atom type <=> force a => not atom type
                     AtomTree::Not(a) => {
                         *changed = true;
-
+                        
                         *t = t.not();
                         *value = *(a).clone();
+                    }
+
+                    AtomTree::Or(a, b) if t.is_false() => {
+                        *changed = true;
+                        remove_indecies.push(i);
+                        add_items.push((*a.to_owned(), ValueAction::Restriction(AtomType::False)));
+                        add_items.push((*b.to_owned(), ValueAction::Restriction(AtomType::False)));
                     }
                     //something like force true => true
                     AtomTree::AtomType { atom } => {
@@ -48,6 +56,7 @@ impl AtomRoot {
         for remove in remove_indecies.iter().rev() {
             self.value_actions.remove(*remove);
         }
+        self.value_actions.append(&mut add_items);
     }
 
     pub fn simp_all(&mut self, compilation: &mut Compilation) -> bool {
