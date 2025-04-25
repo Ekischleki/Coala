@@ -96,6 +96,9 @@ impl AtomTreeCompiler {
                 Node::force_bool(input, self);
                 let res = self.nodes[input].label.not();
                 let inverted_node = Node::new(self, res);
+
+                Node::connect(input, inverted_node, self);
+                
                 Node::force_bool(inverted_node, self);
 
                 inverted_node
