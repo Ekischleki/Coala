@@ -29,6 +29,10 @@ impl<'a> Parser<'a> {
             let current_token = token_stream.next();
             match current_token.token_type() {
                 TokenBlockType::Token(TokenType::Keyword(Keyword::Solution)) => {
+                    if let None = token_stream.error_if_empty(self.compilation, "code block") {
+                        continue;
+                    }
+
                     let solution_block = match token_stream.next().into_block_type_or_error(self.compilation, Brace::Curly){
                         Some(s) => s,
                         None => continue
@@ -42,6 +46,10 @@ impl<'a> Parser<'a> {
                     }
                 }
                 TokenBlockType::Token(TokenType::Keyword(Keyword::Problem)) => {
+                    if let None = token_stream.error_if_empty(self.compilation, "code block") {
+                        continue;
+                    }
+
                     let problem_block = match token_stream.next().into_block_type_or_error(self.compilation, Brace::Curly){
                         Some(s) => s,
                         None => continue
@@ -58,26 +66,21 @@ impl<'a> Parser<'a> {
             }
         }
     }
-    fn parse_composite(&mut self, token_stream: &mut TypeStream<TokenBlock>) {
-        let identifier = match token_stream.next().into_identifier_or_error(self.compilation) {
-            Some(s) => s,
-            None => return
-        };
+    fn parse_composite(&mut self, token_stream: &mut TypeStream<TokenBlock>) -> Option<()> {
+        token_stream.error_if_empty(self.compilation, "identifier")?;
 
-        let composite_body = match token_stream.next().into_block_type_or_error(self.compilation, Brace::Curly) {
-            Some(s) => s,
-            None => return
-        };
+        let identifier = token_stream.next().into_identifier_or_error(self.compilation)?;
 
-        let fields = match self.parse_typed_identifiers(composite_body) {
-            Some(s) => s,
-            None => return
-        };
+        token_stream.error_if_empty(self.compilation, "code block")?;
+
+        let composite_body = token_stream.next().into_block_type_or_error(self.compilation, Brace::Curly)?;
+
+        let fields = self.parse_typed_identifiers(composite_body)?;
 
         self.composite_types.push(CompositeTypeSyntax { name: identifier, fields });
 
 
-
+        Some(())
     }
 
     fn parse_problem(&mut self, block: Block) {
@@ -88,7 +91,11 @@ impl<'a> Parser<'a> {
 
     fn parse_collection(&mut self, token_stream: &mut TypeStream<TokenBlock>) -> Option<CollectionSyntax> {
 //        let collection_token = self.tokens.next();
+        token_stream.error_if_empty(self.compilation, "identifier")?;
+
         let name = token_stream.next().into_identifier_or_error(self.compilation)?;
+
+        token_stream.error_if_empty(self.compilation, "code block")?;
 
         let collection_block = token_stream.next().into_block_type_or_error(self.compilation, Brace::Curly)?;
 
@@ -102,18 +109,16 @@ impl<'a> Parser<'a> {
 
     }
 
-    fn parse_solution(&mut self, block: Block) {
-        let mut token_stream = TypeStream::from_iter(block.body.into_iter());
+    fn parse_solution(&mut self, block: Block) -> Option<()> {
+        let mut token_stream = TypeStream::from_iter(block.body.into_iter(), block.close_token.map(|f| f.code_location().to_owned()));
         while !token_stream.is_empty() {
 
             let function_name = match token_stream.next().into_identifier_or_error(self.compilation) {
                 Some(s) => s,
                 None => continue
             };
-            if token_stream.is_empty() {
-                self.compilation.add_error("Expected application", block.close_token.map(|t| t.code_location().to_owned()));
-                break;
-            }
+            token_stream.error_if_empty(self.compilation, "application")?;
+
             let application = match self.parse_expression(&mut token_stream) {
                 Some(n) => n,
                 None => continue
@@ -127,11 +132,12 @@ impl<'a> Parser<'a> {
             
             token_stream.next().assert_is_delimiter_or_error(self.compilation, Delimiter::Comma);
         } 
+        Some(())
     }
 
     //Parses the subs in a collection
     fn parse_sub_collection(&mut self, block: Block, subs: &mut Vec<SubstructureSyntax>) {
-        let mut block_tokens = TypeStream::from_iter(block.body.into_iter());
+        let mut block_tokens = TypeStream::from_iter(block.body.into_iter(), block.close_token.map(|f| f.code_location().to_owned()));
         while !block_tokens.is_empty() {
             let cur_token = block_tokens.next();
             match cur_token.token_type() {
@@ -150,12 +156,17 @@ impl<'a> Parser<'a> {
     
     pub fn parse_sub(&mut self, token_stream: &mut TypeStream<TokenBlock>) -> Option<SubstructureSyntax> {
 
+        token_stream.error_if_empty(self.compilation, "identifier")?;
 
         let name = token_stream.next().into_identifier_or_error(self.compilation)?;
+
+        token_stream.error_if_empty(self.compilation, "args")?;
 
         let args = token_stream.next().into_block_type_or_error(self.compilation, Brace::Round)?;
 
         let args = self.parse_typed_identifiers(args)?;
+
+        token_stream.error_if_empty(self.compilation, "code block")?;
 
         let code = token_stream.next().into_block_type_or_error(self.compilation, Brace::Curly)?;
 
@@ -171,37 +182,35 @@ impl<'a> Parser<'a> {
 
     pub fn parse_typed_identifiers(&mut self, block: Block) -> Option<Vec<TypedIdentifierSyntax>> {
         let mut enumeration = vec![];
-        let mut tokens = TypeStream::from_iter(block.body.into_iter());
-        while !tokens.is_empty() {
-            let type_syntax = self.parse_type(&mut tokens)?;
+        let mut token_stream = TypeStream::from_iter(block.body.into_iter(), block.close_token.map(|f| f.code_location().to_owned()));
+        while !token_stream.is_empty() {
+            let type_syntax = self.parse_type(&mut token_stream)?;
 
-            if tokens.is_empty() {
-                self.compilation.add_error("Expected colon", block.close_token.map(|t| t.code_location().to_owned()));
-                break;
-            }
+            token_stream.error_if_empty(self.compilation, "colon")?;
+
             //Colon
-            tokens.next().assert_is_delimiter_or_error(self.compilation, Delimiter::Colon)?;
+            token_stream.next().assert_is_delimiter_or_error(self.compilation, Delimiter::Colon)?;
 
-            if tokens.is_empty() {
-                self.compilation.add_error("Expected identifier", block.close_token.map(|t| t.code_location().to_owned()));
-                break;
-            }
+            token_stream.error_if_empty(self.compilation, "identifier")?;
 
-            let name = tokens.next().into_identifier_or_error(self.compilation)?;
+
+            let name = token_stream.next().into_identifier_or_error(self.compilation)?;
 
             
             enumeration.push(TypedIdentifierSyntax {type_syntax, name});
 
-            if tokens.is_empty() {
+            if token_stream.is_empty() {
                 break;
             }
 
-            tokens.next().assert_is_delimiter_or_error(self.compilation, Delimiter::Comma);
+            token_stream.next().assert_is_delimiter_or_error(self.compilation, Delimiter::Comma);
         }
         return Some(enumeration);
     }
 
     pub fn parse_type(&mut self, token_stream: &mut TypeStream<TokenBlock>) -> Option<TypeSyntax> {
+        token_stream.error_if_empty(self.compilation, "type")?;
+
         let token = token_stream.next();
         match token.token_type() {
             TokenBlockType::Token(TokenType::Atom(Atom::Type(t))) => return Some(TypeSyntax::Atom(t.to_owned())),
@@ -216,7 +225,7 @@ impl<'a> Parser<'a> {
     pub fn parse_code_block(&mut self, block: Block) -> Option<Vec<CodeSyntax>> {
         let mut code_syntax = vec![];
 
-        let mut token_stream = TypeStream::from_iter(block.body.into_iter());
+        let mut token_stream = TypeStream::from_iter(block.body.into_iter(), block.close_token.map(|f| f.code_location().to_owned()));
 
         loop {
             match token_stream.peek().map(|f| f.token_type()) {
@@ -237,16 +246,27 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_statement(&mut self, token_stream: &mut TypeStream<TokenBlock>) -> Option<CodeSyntax> {
+
+        token_stream.error_if_empty(self.compilation, "statement")?;
+
         let statement = token_stream.next();
         match statement.token_type() {
             TokenBlockType::Token(TokenType::Keyword(Keyword::Let)) => {
+                token_stream.error_if_empty(self.compilation, "identifier")?;
+
                 let variable = token_stream.next().into_identifier_or_error(self.compilation)?;
+
+                token_stream.error_if_empty(self.compilation, "=")?;
+
+
                 token_stream.next().assert_is_delimiter_or_error(self.compilation, Delimiter::Equals);
                 let value = self.parse_expression(token_stream)?;
                 return Some(CodeSyntax::Let { variable, value });
             }
             TokenBlockType::Token(TokenType::Keyword(Keyword::Force)) => {
                 let value = self.parse_expression(token_stream)?;
+                token_stream.error_if_empty(self.compilation, "=>")?;
+
                 //Arrow
                 token_stream.next().assert_is_delimiter_or_error(self.compilation, Delimiter::ThickArrowRight);
 
@@ -255,6 +275,8 @@ impl<'a> Parser<'a> {
             }
             TokenBlockType::Token(TokenType::Identifier(structure)) if token_stream.peek().is_some_and(|s| s.token_type().is_double_colon()) => {
                 token_stream.next();
+                token_stream.error_if_empty(self.compilation, "identifier")?;
+
                 let sub = token_stream.next().into_identifier_or_error(self.compilation)?;
 
                 let application = self.parse_expression(token_stream)?;
@@ -277,7 +299,8 @@ impl<'a> Parser<'a> {
 
     pub fn parse_expression(&mut self, token_stream: &mut TypeStream<TokenBlock>) -> Option<ExpressionSyntax> {
 
-        
+        token_stream.error_if_empty(self.compilation, "expression")?;
+
 
         let node_value_token = token_stream.next();
     
@@ -287,7 +310,10 @@ impl<'a> Parser<'a> {
             }
 
             TokenBlockType::Token(TokenType::Identifier(structure)) if token_stream.peek().is_some_and(|s| s.token_type().is_double_colon()) => {
+                
                 token_stream.next();
+                token_stream.error_if_empty(self.compilation, "identifier")?;
+
                 let sub = token_stream.next().into_identifier_or_error(self.compilation)?;
 
                 let application = self.parse_expression(token_stream)?;
@@ -312,14 +338,26 @@ impl<'a> Parser<'a> {
 
             }
             TokenBlockType::Token(TokenType::Identifier(type_name)) if token_stream.peek().is_some_and(|s| s.token_type().is_curly_block()) => {
-                
+                token_stream.error_if_empty(self.compilation, "code block")?;
+
                 let assign_block = token_stream.next().into_block_type_or_error(self.compilation, Brace::Curly)?;
                 let field_assign = self.parse_field_assign(assign_block)?;
                 return Some(ExpressionSyntax::CompositeConstructor { type_name: type_name.to_owned(), field_assign })
 
             }
             TokenBlockType::Token(TokenType::Identifier(base)) if token_stream.peek().is_some_and(|s| s.token_type().is_period()) => {
-                todo!("field access parsing");
+                let mut chain = ExpressionSyntax::Variable(base.to_owned());
+
+                while let Some(TokenBlockType::Token(TokenType::Delimiter(Delimiter::Period))) = token_stream.peek().map(|s| s.token_type()) {
+                    token_stream.next().assert_is_delimiter_or_error(self.compilation, Delimiter::Period)?;
+
+                    token_stream.error_if_empty(self.compilation, "identifier")?;
+
+                    let identifier = token_stream.next().into_identifier_or_error(self.compilation)?;
+
+                    chain = ExpressionSyntax::Access { base: chain.into(), field: identifier }
+
+                }
                 return Some(ExpressionSyntax::Variable(base.to_owned()));
             }
             TokenBlockType::Token(TokenType::Identifier(name)) => {
@@ -335,7 +373,7 @@ impl<'a> Parser<'a> {
                     }
                 };
 
-                let mut token_stream = TypeStream::from_iter(block.body.into_iter());
+                let mut token_stream = TypeStream::from_iter(block.body.into_iter(), block.close_token.map(|f| f.code_location().to_owned()));
 
                 let mut enumeration = vec![];
 
@@ -370,22 +408,14 @@ impl<'a> Parser<'a> {
 
     pub fn parse_field_assign(&mut self, block: Block) -> Option<Vec<FieldAssignSyntax>> {
         let mut res = vec![];
-        let mut token_stream = TypeStream::from_iter(block.body.into_iter());
+        let mut token_stream = TypeStream::from_iter(block.body.into_iter(), block.close_token.map(|f| f.code_location().to_owned()));
 
         while !token_stream.is_empty() {
             let field_name = token_stream.next().into_identifier_or_error(self.compilation)?;
 
-            if token_stream.is_empty() {
-                self.compilation.add_error("Expected =", block.close_token.map(|s| s.code_location().to_owned()));
-                break;
-            }
+            token_stream.error_if_empty(self.compilation, ":")?;
 
             token_stream.next().assert_is_delimiter_or_error(self.compilation, Delimiter::Colon);
-
-            if token_stream.is_empty() {
-                self.compilation.add_error("Expected expression", block.close_token.map(|s| s.code_location().to_owned()));
-                break;
-            }
 
             let expression = self.parse_expression(&mut token_stream)?;
 
