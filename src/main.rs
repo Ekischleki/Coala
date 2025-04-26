@@ -27,7 +27,7 @@ pub mod block_parser;
 fn main() {
     let mut file_reader = StringFileReader::new();
     let mut compilation = Compilation::new();
-    let file = "./wip.coala".into();
+    let file = "./simple.coala".into();
 
     file_reader.reset_to_file(&file).unwrap();
     let mut tokens = lexer::tokenize(&mut file_reader, &file, &mut compilation).unwrap();

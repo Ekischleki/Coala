@@ -1,6 +1,6 @@
 use std::{collections::HashMap, panic::Location};
 
-use crate::{atom_tree::{AtomRoot, AtomTree}, atom_tree_to_graph::Label, compilation::Compilation, syntax::{CodeSyntax, CollectionSyntax, CompositeTypeSyntax, NodeValueSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypedIdentifierSyntax}, token::{Atom, AtomSub}};
+use crate::{atom_tree::{AtomRoot, AtomTree}, atom_tree_to_graph::Label, compilation::Compilation, syntax::{CodeSyntax, CollectionSyntax, CompositeTypeSyntax, ExpressionSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypedIdentifierSyntax}, token::{Atom, AtomSub, AtomType}};
 
 pub struct AtomTreeTranslator<'a> {
     pub collections: Vec<CollectionSyntax>,
@@ -26,12 +26,12 @@ impl<'a> AtomTreeTranslator<'a> {
                 Some(s) if s.application.is_some() => {
                     let application = s.application.as_ref().unwrap();
                     match application {
-                        NodeValueSyntax::Literal(l) => {
+                        ExpressionSyntax::Literal(l) => {
                             vec![l.to_owned().into()]
                         }
-                        NodeValueSyntax::Tuple(t) => {
+                        ExpressionSyntax::Tuple(t) => {
                             t.iter().map(|syntax| {
-                                if let NodeValueSyntax::Literal(l) = syntax {
+                                if let ExpressionSyntax::Literal(l) = syntax {
                                     l.to_owned().into()
                                 } else {
                                     self.compilation.add_error("Expected tuple of literals", None);
@@ -50,7 +50,7 @@ impl<'a> AtomTreeTranslator<'a> {
             };
             for (arg, sln) in problem.args.iter().zip(solution.iter()) {
                 let in_var = self.atom_tree.define_new_var(AtomTree::SeedLabel(*sln));
-                input.push(AtomTree::Variable { id: in_var });
+                input.push(ValueCollection::SingleVar(in_var));
             }
             self.compile_substructure(&problem, input);
         }
@@ -58,39 +58,47 @@ impl<'a> AtomTreeTranslator<'a> {
         self.atom_tree
     }
 
-    pub fn map_args(&mut self, mut input_args: Vec<AtomTree>, map_args: &Vec<TypedIdentifierSyntax>, map: &mut HashMap<String, usize>) {
+    pub fn map_args(&mut self, mut input_args: Vec<ValueCollection>, map_args: &Vec<TypedIdentifierSyntax>, map: &mut HashMap<String, ValueCollection>) {
         assert_eq!(map_args.len(), input_args.len());
     
         for i in (0..map_args.len()).rev() {
-            let var = self.atom_tree.define_new_var(input_args.remove(i));
+            let var = input_args.remove(i).write_as_var(self);
             map.insert(map_args[i].name.to_owned(), var);
         }
     }
 
-    pub fn compile_substructure(&mut self, substructure: &SubstructureSyntax, inputs: Vec<AtomTree>) -> Option<Vec<AtomTree>> {
+    pub fn force(&mut self, value: ValueCollection, t: AtomType) {
+        match value {
+            ValueCollection::Single(value) => {
+                self.atom_tree.define_restriction(value, t);
+            }
+            ValueCollection::SingleVar(value) => {
+                self.atom_tree.define_restriction(AtomTree::Variable { id: value }, t);
+            }
+            ValueCollection::Tuple(values) => {
+                for value in values {
+                    self.force(value, t);
+                }
+            }
+            _ => {
+                self.compilation.add_error("Can only force tuple types or single types", None);
+            }
+        }
+    }
+
+    pub fn compile_substructure(&mut self, substructure: &SubstructureSyntax, inputs: Vec<ValueCollection>) -> Option<ValueCollection> {
         let mut variables = HashMap::new();
         self.map_args(inputs, &substructure.args, &mut variables);
         for statement in &substructure.code {
             match statement {
                 CodeSyntax::Let { variable, value } => {
-                    if let Some(mut value) =  self.compile_value(&value, &mut variables) {
-                        if value.len() != 1 {
-                            todo!("Setting variables to tuples")
-                        }
-                        let reference = self.atom_tree.define_new_var(value.pop().unwrap());
-                        variables.insert(variable.to_owned(), reference);
-
-                    }
+                    let value = self.compile_value(&value, &mut variables)?;    
+                    variables.insert(variable.to_owned(), value.write_as_var(self));
                 }
                 CodeSyntax::Force { value, type_syntax } => {
-                    if let Some(mut value) =  self.compile_value(&value, &mut variables) {
-                        if value.len() != 1 {
-                            todo!("Forcing tuples")
-                        }
-                        
-                        self.atom_tree.define_restriction(value.pop().unwrap(), *type_syntax.as_atom().expect("Todo: Force other types"));
-
-                    }
+                    let value = self.compile_value(&value, &mut variables)?;
+                    let force_type = *type_syntax.as_atom().expect("Todo: Force other types");
+                    self.force(value, force_type);
                 }
                 CodeSyntax::Sub(sub) => {
                     self.compile_sub_call(sub, &variables);
@@ -101,39 +109,75 @@ impl<'a> AtomTreeTranslator<'a> {
         if let Some(res) = &substructure.result {
             self.compile_value(res, &variables)
         } else {
-            Some(vec![])
+            Some(ValueCollection::Tuple(vec![]))
         }
     }
 
 
-    pub fn compile_sub_call(&mut self, sub_call_syntax: &SubCallSyntax, variables: &HashMap<String, usize>) -> Option<Vec<AtomTree>> {
+    pub fn compile_sub_call(&mut self, sub_call_syntax: &SubCallSyntax, variables: &HashMap<String, ValueCollection>) -> Option<ValueCollection> {
         let mut application = match  &sub_call_syntax.application {
             Some(application) => self.compile_value(application, &variables)?,
-            None => vec![]
+            None => ValueCollection::Tuple(vec![])
         };
         match &sub_call_syntax.location {
             SubLocation::Atom(a) => {
                 match a {
                     AtomSub::Not => {
-                        if application.len() != 1 {
-                            self.compilation.add_error("Not-sub must take 1 input", None);
-                            return None;
-                        }
-                        Some(vec![AtomTree::Not(application.pop().unwrap().into())])
+                        let application = match application {
+                            ValueCollection::Single(t) => t,
+                            ValueCollection::Tuple(mut t) if t.len() == 1 => {
+                                if let ValueCollection::Single(t) = t.remove(0) {
+                                    t
+                                } else {
+                                    self.compilation.add_error("Expected boolean input", None);
+                                    return None;
+                                }
+                            },
+                            
+                            _ => {
+                                self.compilation.add_error("Incorrect parameters for not function. Expected 1 boolean parameter.", None);
+                                return None;
+                            }
+                        };
+                        Some(ValueCollection::Single(AtomTree::Not(application.into())))
                     },
                     AtomSub::Or => {
-                        if application.len() != 2 {
-                            self.compilation.add_error("Or-sub must take 2 inputs", None);
-                            return None;
-                        }
-                        Some(vec![AtomTree::Or(application.pop().unwrap().into(), application.pop().unwrap().into())])
+                        let (application_a, application_b) = match application {
+                            ValueCollection::Tuple(mut t) if t.len() == 2 => {
+                                (
+                                    //Or is commutative so order of inputs doesn't really matter
+                                    if let ValueCollection::Single(t) = t.remove(1) {
+                                        t
+                                    } else {
+                                        self.compilation.add_error("Expected boolean input", None);
+                                        return None;
+                                    },
+                                    if let ValueCollection::Single(t) = t.remove(0) {
+                                        t
+                                    } else {
+                                        self.compilation.add_error("Expected boolean input", None);
+                                        return None;
+                                    }
+                                )
+                            },
+                            
+                            _ => {
+                                self.compilation.add_error("Incorrect parameters for or function. Expected 2 boolean parameter.", None);
+                                return None;
+                            }
+                        };
+                        Some(ValueCollection::Single(AtomTree::Or(application_a.into(), application_b.into())))
                     }
                 }
             }
             SubLocation::Structure { collection, sub } => {
                 let collection = self.collections.iter().find(|&f| &f.name == collection).unwrap();
                 let sub = collection.subs.iter().find(|&f| &f.name == sub).unwrap().clone();
-
+                let application = if let ValueCollection::Tuple(t) = application {
+                    t
+                } else {
+                    vec![application]
+                };
                 self.compile_substructure(&sub, application)
 
             }
@@ -141,35 +185,35 @@ impl<'a> AtomTreeTranslator<'a> {
         }
     }
 
-    pub fn compile_value(&mut self, value: &NodeValueSyntax, variables: &HashMap<String, usize>) -> Option<Vec<AtomTree>> {
+    pub fn compile_value(&mut self, value: &ExpressionSyntax, variables: &HashMap<String, ValueCollection>) -> Option<ValueCollection> {
 
         match value {
-            NodeValueSyntax::Access(a) => {
+            ExpressionSyntax::Access{base, field} => {
+                self.compile_value(base, variables)?.access_or_error(field, self.compilation).cloned()
+            }
+            ExpressionSyntax::CompositeConstructor { type_name, field_assign } => {
                 todo!()
             }
-            NodeValueSyntax::Literal(atom) => {
-                Some(vec![AtomTree::AtomType { atom: *atom }])
+            ExpressionSyntax::Literal(atom) => {
+                Some(ValueCollection::Single(AtomTree::AtomType { atom: *atom }))
             }
-            NodeValueSyntax::Variable(name) => {
-                if let Some(id) = variables.get(name) {
-                    Some(vec![AtomTree::Variable{id: *id}])
+            ExpressionSyntax::Variable(name) => {
+                if let Some(var) = variables.get(name) {
+                    Some(var.to_owned())
                 } else {
                     self.compilation.add_error(&format!("Variable {name} not found in current scope."), None);
                     None
                 }
             }
-            NodeValueSyntax::Tuple(t) => {
+            ExpressionSyntax::Tuple(t) => {
                 let mut vals = vec![];
                 for v in t {
                     let mut v = self.compile_value(v, variables)?;
-                    if v.len() != 1 {
-                        todo!("Implement tuple in tuple support/advanced structures")
-                    }
-                    vals.append(&mut v);
+                    vals.push(v);
                 }
-                Some(vals)
+                Some(ValueCollection::Tuple(vals))
             }
-            NodeValueSyntax::Sub(sub_call_syntax) => {
+            ExpressionSyntax::Sub(sub_call_syntax) => {
                 self.compile_sub_call(sub_call_syntax, variables)
             }
         }
@@ -177,8 +221,52 @@ impl<'a> AtomTreeTranslator<'a> {
     }
 }
 
+#[derive(Clone)]
 pub enum ValueCollection {
+    SingleVar(usize),
     Single(AtomTree),
     Tuple(Vec<Self>),
+    Composite {
+        composite_name: String,
+        fields: HashMap<String, ValueCollection>
+    }
+}
 
+impl ValueCollection {
+    pub fn write_as_var(self, atom_tree_translate: &mut AtomTreeTranslator) -> Self {
+        match self {
+            Self::Single(atom_tree) => {
+                Self::SingleVar(atom_tree_translate.atom_tree.define_new_var(atom_tree))
+            },
+            Self::Tuple(v) => {
+                Self::Tuple(
+                    v.into_iter()
+                    .map(|value| value.write_as_var(atom_tree_translate))
+                    .collect())
+            }
+            Self::Composite { composite_name, fields } => {
+                Self::Composite { composite_name,
+                     fields: fields.into_iter()
+                            .map(|(k, v)| (k, v.write_as_var(atom_tree_translate)))
+                            .collect() 
+                    }
+            }
+            Self::SingleVar(s) => Self::SingleVar(s)
+        }
+    }
+    pub fn access_or_error(&self, accessor_name: &String, compilation: &mut Compilation) -> Option<&Self> {
+        match self {
+            Self::Single(_) | Self::SingleVar(_) => {
+                compilation.add_error(&format!("Cannot access field {} on a simple bool-type value", accessor_name), None);
+                None
+            },
+            Self::Tuple(fields) => {
+                todo!("I hate tuples anyways")
+                //let index = accessor_name.parse()
+            }
+            Self::Composite { fields, .. } => {
+                fields.get(accessor_name)
+            }
+        }
+    }
 }
