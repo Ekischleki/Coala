@@ -123,22 +123,7 @@ impl<'a> AtomTreeTranslator<'a> {
             SubLocation::Atom(a) => {
                 match a {
                     AtomSub::Not => {
-                        let application = match application {
-                            ValueCollection::Single(t) => t,
-                            ValueCollection::Tuple(mut t) if t.len() == 1 => {
-                                if let ValueCollection::Single(t) = t.remove(0) {
-                                    t
-                                } else {
-                                    self.compilation.add_error("Expected boolean input", None);
-                                    return None;
-                                }
-                            },
-                            
-                            _ => {
-                                self.compilation.add_error("Incorrect parameters for not function. Expected 1 boolean parameter.", None);
-                                return None;
-                            }
-                        };
+                        let application = application.get_as_atom_tree_if_single_or_error(self.compilation)?;
                         Some(ValueCollection::Single(AtomTree::Not(application.into())))
                     },
                     AtomSub::Or => {
@@ -146,18 +131,8 @@ impl<'a> AtomTreeTranslator<'a> {
                             ValueCollection::Tuple(mut t) if t.len() == 2 => {
                                 (
                                     //Or is commutative so order of inputs doesn't really matter
-                                    if let ValueCollection::Single(t) = t.remove(1) {
-                                        t
-                                    } else {
-                                        self.compilation.add_error("Expected boolean input", None);
-                                        return None;
-                                    },
-                                    if let ValueCollection::Single(t) = t.remove(0) {
-                                        t
-                                    } else {
-                                        self.compilation.add_error("Expected boolean input", None);
-                                        return None;
-                                    }
+                                    t.pop()?.get_as_atom_tree_if_single_or_error(self.compilation)?,
+                                    t.pop()?.get_as_atom_tree_if_single_or_error(self.compilation)?
                                 )
                             },
                             
@@ -233,6 +208,17 @@ pub enum ValueCollection {
 }
 
 impl ValueCollection {
+    pub fn get_as_atom_tree_if_single_or_error(self, compilation: &mut Compilation) -> Option<AtomTree> {
+        match self {
+            Self::SingleVar(id) => Some(AtomTree::Variable { id }),
+            Self::Single(tree) => Some(tree),
+            Self::Tuple(mut t) if t.len() == 1 => t.remove(0).get_as_atom_tree_if_single_or_error(compilation),
+            _ => {
+                compilation.add_error("Expected simple boolean value", None);
+                None
+            }
+        }
+    }
     pub fn write_as_var(self, atom_tree_translate: &mut AtomTreeTranslator) -> Self {
         match self {
             Self::Single(atom_tree) => {

@@ -18,7 +18,7 @@ pub struct SubstructureSyntax {
     pub name: String,
     pub args: Vec<TypedIdentifierSyntax>,
     pub code: Vec<CodeSyntax>,
-    pub result: Option<NodeValueSyntax>
+    pub result: Option<ExpressionSyntax>
 }
 
 impl Hash for SubstructureSyntax {
@@ -39,11 +39,11 @@ impl Eq for SubstructureSyntax {}
 pub enum CodeSyntax {
     Let{
         variable: String,
-        value: NodeValueSyntax,
+        value: ExpressionSyntax,
     },
 
     Force {
-        value: NodeValueSyntax,
+        value: ExpressionSyntax,
         type_syntax: TypeSyntax,
     },
     Sub(SubCallSyntax),
@@ -65,12 +65,19 @@ pub enum TypeSyntax {
 }
 #[derive(Debug, Clone)]
 
-pub enum NodeValueSyntax {
+pub enum ExpressionSyntax {
     Tuple(Vec<Self>),
     Variable(String),
-    Access(Vec<String>),
+    Access{
+        base: Box<Self>,
+        field: String,
+    },
     Sub(Box<SubCallSyntax>),
-    Literal(AtomType)
+    Literal(AtomType),
+    CompositeConstructor{
+        type_name: String,
+        field_assign: Vec<FieldAssignSyntax>
+    }
 }
 
 
@@ -78,7 +85,7 @@ pub enum NodeValueSyntax {
 
 pub struct SubCallSyntax {
     pub location: SubLocation,
-    pub application: Option<NodeValueSyntax>,
+    pub application: Option<ExpressionSyntax>,
 }
 #[derive(Debug, Clone)]
 pub enum SubLocation {
@@ -94,6 +101,13 @@ pub enum SubLocation {
 pub struct TypedIdentifierSyntax {
     pub name: String,
     pub type_syntax: TypeSyntax
+}
+
+#[derive( Debug, Clone)]
+
+pub struct FieldAssignSyntax {
+    pub left: String,
+    pub right: ExpressionSyntax,
 }
 
 #[derive( Debug, Clone)]
