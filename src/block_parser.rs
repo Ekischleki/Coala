@@ -127,6 +127,7 @@ impl TokenBlockType<'_> {
 impl TokenBlock {
     pub fn from_token_stream(mut token_stream: TypeStream<Token>, compilation:  &mut Compilation) -> Result<TypeStream<Self>, ()> {
         let mut res = vec![];
+        
         loop {
             let token = token_stream.next();
             match token.token_type() {
@@ -138,14 +139,15 @@ impl TokenBlock {
                     compilation.add_error(&format!("Unexpected {:?}", brace_type), Some(token.code_location().to_owned()));
                     return Err(())
                 }
-                TokenType::EOF => break,
+                TokenType::EOF => return Ok(TypeStream::from_iter(res.into_iter(), Some(token.code_location().to_owned()))),
+                
                 _ => {
                     res.push(TokenBlock::Token(token));
                 }
             }
         }
 
-        Ok(TypeStream::from_iter(res.into_iter()))
+        
 
     }
 
