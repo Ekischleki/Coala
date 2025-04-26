@@ -1,4 +1,4 @@
-use std::{fs::File, io::Write, path::PathBuf};
+use std::{env::args, fs::File, io::Write, path::PathBuf};
 
 use atom_tree_to_graph::AtomTreeCompiler;
 use atom_tree_translate::AtomTreeTranslator;
@@ -25,9 +25,24 @@ pub mod export;
 pub mod block_parser;
 
 fn main() {
+    let mut args = args();
+
+    if args.len() != 2 {
+        println!("Expected one input file path to compile.");
+        return;
+    }
+
+    args.next();
+    let file = args.next().unwrap();
+
     let mut file_reader = StringFileReader::new();
     let mut compilation = Compilation::new();
-    let file = "./simple.coala".into();
+    let file: PathBuf = file.into();
+
+    if !file.exists() {
+        println!("Couldn't find file.");
+        return;
+    }
 
     file_reader.reset_to_file(&file).unwrap();
     let mut tokens = lexer::tokenize(&mut file_reader, &file, &mut compilation).unwrap();
