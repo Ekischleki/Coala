@@ -16,7 +16,10 @@ collection bit {
     sub half_adder(bool: a, bool: b) {
         let carry = bool::and(a, b)
         let data = bool::xor(a, b)
-    } = (carry, data)
+    } = ArithmeticResult {
+            data: data, 
+            carry: carry
+        }
 }
 collection assert {
     sub eq(bool: a, bool: b) {
@@ -33,14 +36,19 @@ collection assert {
     }
 }
 
-composite ArithmeticResult {
-    bool: data,
-    bool: carry
-}
+#composite ArithmeticResult {
+#    bool: data,
+#    bool: carry
+#}
 
 problem {
-    sub test(bool: a, bool: b) { 
-        force bool::and(a, b) => true
+    #sub test(ArithmeticResult: arithmetic_result) { 
+    #    force arithmetic_result.data => true
+    #    force arithmetic_result.carry => false
+    #}
+    sub test(bool: a, bool: b) {
+        #let res = bit::half_adder(a, b)
+        force or (a, b) => false
     }
 }
 

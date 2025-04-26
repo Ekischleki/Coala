@@ -1,10 +1,10 @@
 problem {
     sub test(bool: a, bool: b) {
-        force (a, b) => false
+        force (a, not b) => false
     }
 }
 
 
 solution {
-    test(false, false)
+    test(false, true)
 }
