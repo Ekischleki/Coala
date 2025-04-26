@@ -1,9 +1,12 @@
 use std::{fmt::Debug, vec::IntoIter};
 
+use crate::{block_parser::TokenBlock, code_location::CodeLocation, compilation::{self, Compilation}, token::Token};
+
 #[derive(Debug)]
 pub struct TypeStream<T: Debug> {
     tokens: IntoIter<T>,
-    next: Option<T>
+    next: Option<T>,
+    end: Option<CodeLocation>
 }
 
 
@@ -19,22 +22,33 @@ impl<T: Debug> Iterator for TypeStream<T> {
     }
 }
 
+
+
 impl<T: Debug> TypeStream<T> {
+    pub fn error_if_empty(&self, compilation: &mut Compilation, expected: &str) -> Option<()> {
+        if self.is_empty() {
+            compilation.add_error(&format!("Expected {expected}"), self.end.clone());
+            None
+        } else {
+            Some(())
+        }
+    }
     pub fn is_empty(&self) -> bool {
         self.next.is_none()
     }
     pub fn new(tokens: Vec<T>) -> Self{
 
-        Self::from_iter(tokens.into_iter())
+        Self::from_iter(tokens.into_iter(), None)
     }
 
     pub fn to_vec(self) -> Vec<T> {
         self.into()
     }
-    pub fn from_iter(iter: IntoIter<T>) -> Self {
+    pub fn from_iter(iter: IntoIter<T>, end: Option<CodeLocation>) -> Self {
         let mut res = Self {
             tokens: iter,
             next: None,
+            end
         };
         res.next = res.tokens.next();
         return res;
