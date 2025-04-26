@@ -79,8 +79,6 @@ impl TokenBlock {
             if let Some(found_delim) = token.token_type().as_delimiter() {
                 if found_delim == &expected_delimiter {
                     return Some(())
-                } else {
-                    return None;
                 }
             }
         }
@@ -105,11 +103,24 @@ impl TokenBlockType<'_> {
             }
         }
     }
+    pub fn as_block(&self) -> Option<&Brace> {
+        match self {
+            Self::Token(_t) => {
+                None
+            }
+            Self::Block(b) => {
+                Some(b)
+            }
+        }
+    }
     pub fn is_double_colon(&self) -> bool {
         self.as_delimiter().map(|d| d.is_double_colon()).is_some_and(|s| s)
     }
     pub fn is_period(&self) -> bool {
         self.as_delimiter().map(|d| d.is_period()).is_some_and(|s| s)
+    }
+    pub fn is_curly_block(&self) -> bool {
+        self.as_block().map(|d| d.is_curly()).is_some_and(|s| s)
     }
 }
 
