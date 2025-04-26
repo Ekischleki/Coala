@@ -10,6 +10,9 @@ pub struct AtomTreeTranslator<'a> {
 }
 
 impl<'a> AtomTreeTranslator<'a> {
+    pub fn find_composite(&self, name: &String) -> Option<&CompositeTypeSyntax> {
+        self.composites.iter().find(|composite| &composite.name == name)
+    }
     pub fn new(comp: &'a mut Compilation, collections: Vec<CollectionSyntax>, composites: Vec<CompositeTypeSyntax>) -> Self {
         Self {
             compilation: comp,
@@ -164,10 +167,37 @@ impl<'a> AtomTreeTranslator<'a> {
 
         match value {
             ExpressionSyntax::Access{base, field} => {
-                self.compile_value(base, variables)?.access_or_error(field, self.compilation).cloned()
+                self.compile_value(base, variables)?.access_identifier_or_error(field, self.compilation).cloned()
+            }
+            ExpressionSyntax::AccessIdx{base, idx} => {
+                self.compile_value(base, variables)?.access_index_or_error(idx, self.compilation).cloned()
             }
             ExpressionSyntax::CompositeConstructor { type_name, field_assign } => {
-                todo!()
+                let composite = match self.find_composite(type_name) {
+                    Some(s) => s,
+                    None => {
+                        self.compilation.add_error(&format!("Couldn't find type {type_name}"), None);
+                        return None;
+                    }
+                };
+                let mut missing_fields = composite.fields.clone();
+                let mut assigned_fields = HashMap::new();
+                for field_assign in field_assign {
+                    match missing_fields.iter().enumerate().find(|(_, n)| n.name == field_assign.left) {
+                        Some((i, _)) => {
+                            missing_fields.remove(i);
+                            assigned_fields.insert(field_assign.left.clone(), self.compile_value(&field_assign.right, variables)?);
+                        },
+                        None => {
+                            self.compilation.add_error(&format!("Field \"{}\" has either already been assigned, or is not in the composite type.", field_assign.left), None);
+                        }
+                    }
+                }
+                if !missing_fields.is_empty() {
+                    self.compilation.add_error("Some fields of the struct haven't been assigned", None);
+                    return None;
+                }
+                return Some(ValueCollection::Composite { composite_name: type_name.clone(), fields: assigned_fields })
             }
             ExpressionSyntax::Literal(atom) => {
                 Some(ValueCollection::Single(AtomTree::AtomType { atom: *atom }))
@@ -240,19 +270,49 @@ impl ValueCollection {
             Self::SingleVar(s) => Self::SingleVar(s)
         }
     }
-    pub fn access_or_error(&self, accessor_name: &String, compilation: &mut Compilation) -> Option<&Self> {
+    pub fn access_identifier_or_error(&self, accessor_name: &String, compilation: &mut Compilation) -> Option<&Self> {
         match self {
             Self::Single(_) | Self::SingleVar(_) => {
                 compilation.add_error(&format!("Cannot access field {} on a simple bool-type value", accessor_name), None);
                 None
             },
-            Self::Tuple(fields) => {
-                todo!("I hate tuples anyways")
-                //let index = accessor_name.parse()
+            Self::Tuple(_) => {
+                compilation.add_error(&format!("Cannot access field {} on an anonymous tuple", accessor_name), None);
+                None
             }
             Self::Composite { fields, .. } => {
-                fields.get(accessor_name)
+                match fields.get(accessor_name) {
+                    Some(s) => Some(s),
+                    None => {
+                        compilation.add_error(&format!("Cannot access field {} on this type", accessor_name), None);
+                        None
+        
+                    }
+                }
             }
+
+        }
+    }
+    pub fn access_index_or_error(&self, accessor_idx: &usize, compilation: &mut Compilation) -> Option<&Self> {
+        match self {
+            Self::Single(_) | Self::SingleVar(_) => {
+                compilation.add_error(&format!("Cannot access indexed on a simple bool-type value"), None);
+                None
+            },
+            Self::Tuple(fields) => {
+                match fields.get(*accessor_idx) {
+                    Some(s) => Some(s),
+                    None => {
+                        compilation.add_error(&format!("Index {} is out of bounds for tuple with size {}", accessor_idx, fields.len()), None);
+                        None
+                    }
+                }
+            }
+            Self::Composite { fields, .. } => {
+                todo!("Indexing composite types");
+            }
+
         }
     }
 }
+

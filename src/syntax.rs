@@ -72,6 +72,10 @@ pub enum ExpressionSyntax {
         base: Box<Self>,
         field: String,
     },
+    AccessIdx {
+        base: Box<Self>,
+        idx: usize,
+    },
     Sub(Box<SubCallSyntax>),
     Literal(AtomType),
     CompositeConstructor{

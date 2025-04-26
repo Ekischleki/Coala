@@ -351,14 +351,27 @@ impl<'a> Parser<'a> {
                 while let Some(TokenBlockType::Token(TokenType::Delimiter(Delimiter::Period))) = token_stream.peek().map(|s| s.token_type()) {
                     token_stream.next().assert_is_delimiter_or_error(self.compilation, Delimiter::Period)?;
 
+
                     token_stream.error_if_empty(self.compilation, "identifier")?;
 
-                    let identifier = token_stream.next().into_identifier_or_error(self.compilation)?;
+                    let access_token = token_stream.next();
 
-                    chain = ExpressionSyntax::Access { base: chain.into(), field: identifier }
+                    chain = match access_token.token_type() {
+                        TokenBlockType::Token(TokenType::Integer(idx)) => {
+                            ExpressionSyntax::AccessIdx { base: chain.into(), idx: *idx }
+                        },
+                        TokenBlockType::Token(TokenType::Identifier(_)) => {
+                            let identifier: String = access_token.into_identifier_or_error(self.compilation)?;
+                            ExpressionSyntax::Access { base: chain.into(), field: identifier }
+                        }
+                        _ => {
+                            self.compilation.add_error("Expected integer or identifier", Some(access_token.code_location().to_owned()));
+                            return None;
+                        }
+                    };
 
                 }
-                return Some(ExpressionSyntax::Variable(base.to_owned()));
+                return Some(chain);
             }
             TokenBlockType::Token(TokenType::Identifier(name)) => {
 
