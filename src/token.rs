@@ -69,7 +69,7 @@ pub enum AtomSub { //Atomic submarine
     Not
 }
 
-#[derive(Debug, Clone, Copy, EnumAsInner, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, EnumAsInner, PartialEq, Eq, Hash)]
 pub enum AtomType {
     True,
     False,

@@ -87,6 +87,9 @@ fn main() {
 
     }
 
+    atom_tree.finalize_simp();
+    println!("{:#?}", atom_tree);
+
     let atom_tree_compiler = AtomTreeCompiler::new(atom_tree);
     let nodes = atom_tree_compiler.compile();
     println!("{:#?}:{}", nodes, nodes.len());

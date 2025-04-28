@@ -22,9 +22,15 @@ impl AtomRoot {
     pub fn simp_force(&mut self, compilation: &mut Compilation, changed: &mut bool) {
         let mut remove_indecies = vec![];
         let mut add_items = vec![];
+        //For if we have force a => true, we can for the entirety of the program assume that a is true, because the graph wouldn't be solvable anyways if it wasn't. We just have to not replace it for the restriction
+        let mut inline_definitions = HashMap::new();
         for (i, (value, action)) in self.value_actions.iter_mut().enumerate() {
             if let ValueAction::Restriction(t) = action {
                 match value {
+                    AtomTree::Variable { id } => {
+                        inline_definitions.insert(*id, Box::new(AtomTree::AtomType { atom: *t }));
+                        *value = AtomTree::DoNotRemoveMarker(Box::new(AtomTree::Variable { id: *id }));
+                    }
                     //force not a => atom type <=> force a => not atom type
                     AtomTree::Not(a) => {
                         *changed = true;
@@ -57,6 +63,10 @@ impl AtomRoot {
             self.value_actions.remove(*remove);
         }
         self.value_actions.append(&mut add_items);
+
+        self.apply_to_all_trees_mut(|atom_tree| {
+            atom_tree.inline_var(&inline_definitions);
+        });
     }
 
     pub fn simp_all(&mut self, compilation: &mut Compilation) -> bool {
@@ -64,9 +74,16 @@ impl AtomRoot {
         self.apply_to_all_trees(|t| {
             t.simp_rec(&mut changed)
         });
+        println!("{:#?}", self);
         self.simp_force(compilation, &mut changed);
 
         return changed;
+    }
+
+    pub fn finalize_simp(&mut self) {
+        self.apply_to_all_trees_mut(|t| {
+            t.finalize_simp()
+        });
     }
 
     pub fn remove_links(&mut self) -> bool {
@@ -173,9 +190,11 @@ pub struct VarDefinition {
 
 
 
-#[derive(EnumAsInner, Debug, Clone, PartialEq)]
+#[derive(EnumAsInner, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AtomTree {
     SeedLabel(Label),
+    //Can be safely removed after simplifying is done.
+    DoNotRemoveMarker(Box<AtomTree>),
     Variable {
         id: usize,
     },
@@ -199,6 +218,18 @@ impl AtomTree {
             Self::Variable { id } => {*counter.entry(*id).or_insert(0) += 1;},
             Self::Not(a) => {a.count_var_use(counter);},
             Self::Or(a, b) => {a.count_var_use(counter); b.count_var_use(counter);},
+            _ => {}
+        }
+    }
+    fn finalize_simp(&mut self) {
+        match self {
+            Self::DoNotRemoveMarker(m) => {
+                *self = *m.to_owned();
+                self.finalize_simp();
+            }
+
+            Self::Not(a) => {a.finalize_simp();},
+            Self::Or(a, b) => {a.finalize_simp(); b.finalize_simp();},
             _ => {}
         }
     }
