@@ -5,7 +5,7 @@ Building such a graph yourself however seems to be quite complex, which is where
 Im sure by now you're already excited to learn this language and explore the countless possibilities this new environment presents to you, so let's start by exploring some basics.
 
 ## Compiler usage
-
+Until now, the compiler doesn't support many arguments. You just simply use it as such: `./coala source_file`. If you run that, it might output a whole bunch of debug stuff, but you're safe to just ignore that. The two formatted files it outputs are compiled_edges.csv and compiled_labels.csv, representing the graph and the coloring respectively. You can visualize these with a tool like gephi.
 ## Comments
 Perhaps the most important thing to start out with, so code can actually be explained: Comments. Everything past a `#` sign gets turned into a comment up until a new line is reached
 ```
@@ -15,17 +15,54 @@ This is no longer a comment
 #Amazing
 ```
 ## Atom types
-
+Atom types are the simple True and False values you have access to. Everything you make in this language will at its lowest level be made from the two atom types there are, similar to how a computer is "just zeros and ones" at its lowest level. 
 ## Atom subs
+Atom subs (Short for atomic submarines/substructures however you're feeling) are the two subs you have access to from the beginning of every file. They're compiler built-in. They are meant to combine atom types.
+The two atom subs are "not" and "or". Here are their respective truth tables
+- not
+  - not (True) => False
+  - not (False) => True
+- or
+  - or (False, False) => False
+  - or (False, True) => True
+  - or (True, False) => True
+  - or (True, True) => True
 
+But im sure you know these already ;) 
 ## Subs (functions) and collections
-
+By chaining together the two atom subs you were given, you can make every single truth table you can imagine, by creating your own subs.
+First think of the general topic you want your subs to be in, like commutative two input truth tables. The group name you have in mind is gonna be your collection, in which you can put subs with their own name. Here's an example
+```
+collection commutative_two_input_truth_tables {
+  #Youll figure out a bit more about types in the types section.
+  sub and(bool: a, bool: b) {
+    let res = #Our code would go here, if we know how to write any...
+  } = res #Ohh yeah. Subs can only return something after everything has been executed. This is shown by the assignage. For this assignage, you'll have access to all the variables accessable within the function.
+}
+```
 ## Problem solution architecture
-## Problem
-## Solution
+Every problem in this language represents a starting point of the program. There can be multiple problems, which would corrospond to multiple starting points. The execution order is just kinda "whatever I feel like rn" with this language so don't worry about it. Every problem may take some inputs, specifying these inputs is what the solution is for. If the given inputs are "correct", the graph can easily be colored by the compiler. Here's an example of how you would use these
+```
+problem {
+  sub main_problem(bool: a, bool: b) {
+    #Make it so that the only correct solution to the problem is when both a and b are false, youll learn about this later
+    force or(a, b) => false
+  }
+}
+
+solution {
+  main_problem(false, false), #Add more solutions by comma seperating them.
+}
+```
 
 ## Composite types
-
+Composite types are basically a collection of named values. You might know them as structs. Here's how you define a composite type
+```
+composite CoolType {
+  bool: is_cool,
+  
+}
+```
 ## Type syntax
 
 ## Expressions
