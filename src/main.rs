@@ -27,14 +27,13 @@ pub mod block_parser;
 fn main() {
     let mut args = args();
 
-    if args.len() != 2 {
+    let file = if args.len() != 2 {
         println!("Expected one input file path to compile.");
-        return;
-    }
-
-    args.next();
-    let file = args.next().unwrap();
-
+        "./wip.coala".into()
+    } else {
+        args.next();
+        args.next().unwrap()
+    };
     let mut file_reader = StringFileReader::new();
     let mut compilation = Compilation::new();
     let file: PathBuf = file.into();
@@ -90,7 +89,7 @@ fn main() {
 
     let atom_tree_compiler = AtomTreeCompiler::new(atom_tree);
     let nodes = atom_tree_compiler.compile();
-    println!("{:#?}", nodes);
+    println!("{:#?}:{}", nodes, nodes.len());
 
     let mut buf_edges = String::new();
     let mut buf_labels = String::new();

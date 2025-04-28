@@ -28,6 +28,9 @@ static KEYWORD_MAPPING: phf::Map<&'static str, &'static TokenType> = phf_map! {
 
     "let" => &TokenType::Keyword(Keyword::Let),
     "force" => &TokenType::Keyword(Keyword::Force),
+    "if" => &TokenType::Keyword(Keyword::If),
+    "else" => &TokenType::Keyword(Keyword::Else),
+
 
     "sub" => &TokenType::Keyword(Keyword::SubStructure),
     "collection" => &TokenType::Keyword(Keyword::Collection),

@@ -6,7 +6,8 @@ pub struct AtomTreeTranslator<'a> {
     pub collections: Vec<CollectionSyntax>,
     pub atom_tree: AtomRoot,
     pub compilation: &'a  mut Compilation,
-    pub composites: Vec<CompositeTypeSyntax>
+    pub composites: Vec<CompositeTypeSyntax>,
+    pub condition_stack: Vec<AtomTree> 
 }
 
 impl<'a> AtomTreeTranslator<'a> {
@@ -18,7 +19,8 @@ impl<'a> AtomTreeTranslator<'a> {
             compilation: comp,
             collections,
             composites,
-            atom_tree: AtomRoot::default()
+            atom_tree: AtomRoot::default(),
+            condition_stack: vec![]
         }
     }
     pub fn convert(mut self, problems: Vec<SubstructureSyntax>, solutions: HashMap<String, SubCallSyntax>) -> AtomRoot {
@@ -70,13 +72,33 @@ impl<'a> AtomTreeTranslator<'a> {
         }
     }
 
+    ///Mutate value such that it is always valid if forced if any condition is not met
+    pub fn mutate_value_to_enforce_at_condition(&self, mut value: AtomTree, t: AtomType) -> AtomTree {
+        for condition in &self.condition_stack {
+            match t {
+                AtomType::True => {
+                    value = AtomTree::Or(value.into(), AtomTree::Not(condition.to_owned().into()).into())
+                }
+                AtomType::False => {
+                    value = AtomTree::Not(AtomTree::Or(AtomTree::Not(value.into()).into(), AtomTree::Not(condition.to_owned().into()).into()).into())
+                }
+            }
+        }
+        value
+    }
+
     pub fn force(&mut self, value: ValueCollection, t: AtomType) {
         match value {
             ValueCollection::Single(value) => {
+                let value = self.mutate_value_to_enforce_at_condition(value, t);
                 self.atom_tree.define_restriction(value, t);
+
             }
             ValueCollection::SingleVar(value) => {
-                self.atom_tree.define_restriction(AtomTree::Variable { id: value }, t);
+
+                let value = self.mutate_value_to_enforce_at_condition(AtomTree::Variable { id: value }, t);
+
+                self.atom_tree.define_restriction(value, t);
             }
             ValueCollection::Tuple(values) => {
                 for value in values {
@@ -92,14 +114,41 @@ impl<'a> AtomTreeTranslator<'a> {
     pub fn compile_substructure(&mut self, substructure: &SubstructureSyntax, inputs: Vec<ValueCollection>) -> Option<ValueCollection> {
         let mut variables = HashMap::new();
         self.map_args(inputs, &substructure.args, &mut variables);
-        for statement in &substructure.code {
+        self.compile_code_block(&substructure.code, &mut variables);
+        if let Some(res) = &substructure.result {
+            self.compile_expression(res, &variables)
+        } else {
+            Some(ValueCollection::Tuple(vec![]))
+        }
+    }
+
+    pub fn compile_code_block(&mut self, block: &Vec<CodeSyntax>, variables: &mut HashMap<String, ValueCollection>) -> Option<()> {
+        for statement in block {
             match statement {
+                //A conditional code block only changes force statements to always be valid iff the condition is not met
+                CodeSyntax::If { condition, condition_true } => {
+                    let condition = self.compile_expression(condition, variables)?.write_as_var(self).get_as_atom_tree_if_single_or_error(self.compilation)?;
+                    self.condition_stack.push(condition);
+                    self.compile_code_block(condition_true, variables);
+                    self.condition_stack.pop();
+                }
+                CodeSyntax::IfElse { condition, condition_true, condition_false } => {
+                    let condition = self.compile_expression(condition, variables)?.write_as_var(self).get_as_atom_tree_if_single_or_error(self.compilation)?;
+                    self.condition_stack.push(condition);
+                    self.compile_code_block(condition_true, variables);
+                    let condition = self.condition_stack.pop().expect("Expected condition stack to be non-empty");
+
+                    let inverted_condition = AtomTree::Not(condition.into());
+                    self.condition_stack.push(inverted_condition);
+                    self.compile_code_block(condition_false, variables);
+                    self.condition_stack.pop();
+                }
                 CodeSyntax::Let { variable, value } => {
-                    let value = self.compile_value(&value, &mut variables)?;    
+                    let value = self.compile_expression(&value, variables)?;    
                     variables.insert(variable.to_owned(), value.write_as_var(self));
                 }
                 CodeSyntax::Force { value, type_syntax } => {
-                    let value = self.compile_value(&value, &mut variables)?;
+                    let value = self.compile_expression(&value, variables)?;
                     let force_type = *type_syntax.as_atom().expect("Todo: Force other types");
                     self.force(value, force_type);
                 }
@@ -109,17 +158,12 @@ impl<'a> AtomTreeTranslator<'a> {
                 _ => {todo!()}
             }
         }
-        if let Some(res) = &substructure.result {
-            self.compile_value(res, &variables)
-        } else {
-            Some(ValueCollection::Tuple(vec![]))
-        }
+        Some(())
     }
-
 
     pub fn compile_sub_call(&mut self, sub_call_syntax: &SubCallSyntax, variables: &HashMap<String, ValueCollection>) -> Option<ValueCollection> {
         let mut application = match  &sub_call_syntax.application {
-            Some(application) => self.compile_value(application, &variables)?,
+            Some(application) => self.compile_expression(application, &variables)?,
             None => ValueCollection::Tuple(vec![])
         };
         match &sub_call_syntax.location {
@@ -163,14 +207,14 @@ impl<'a> AtomTreeTranslator<'a> {
         }
     }
 
-    pub fn compile_value(&mut self, value: &ExpressionSyntax, variables: &HashMap<String, ValueCollection>) -> Option<ValueCollection> {
+    pub fn compile_expression(&mut self, value: &ExpressionSyntax, variables: &HashMap<String, ValueCollection>) -> Option<ValueCollection> {
 
         match value {
             ExpressionSyntax::Access{base, field} => {
-                self.compile_value(base, variables)?.access_identifier_or_error(field, self.compilation).cloned()
+                self.compile_expression(base, variables)?.access_identifier_or_error(field, self.compilation).cloned()
             }
             ExpressionSyntax::AccessIdx{base, idx} => {
-                self.compile_value(base, variables)?.access_index_or_error(idx, self.compilation).cloned()
+                self.compile_expression(base, variables)?.access_index_or_error(idx, self.compilation).cloned()
             }
             ExpressionSyntax::CompositeConstructor { type_name, field_assign } => {
                 let composite = match self.find_composite(type_name) {
@@ -186,7 +230,7 @@ impl<'a> AtomTreeTranslator<'a> {
                     match missing_fields.iter().enumerate().find(|(_, n)| n.name == field_assign.left) {
                         Some((i, _)) => {
                             missing_fields.remove(i);
-                            assigned_fields.insert(field_assign.left.clone(), self.compile_value(&field_assign.right, variables)?);
+                            assigned_fields.insert(field_assign.left.clone(), self.compile_expression(&field_assign.right, variables)?);
                         },
                         None => {
                             self.compilation.add_error(&format!("Field \"{}\" has either already been assigned, or is not in the composite type.", field_assign.left), None);
@@ -213,7 +257,7 @@ impl<'a> AtomTreeTranslator<'a> {
             ExpressionSyntax::Tuple(t) => {
                 let mut vals = vec![];
                 for v in t {
-                    let mut v = self.compile_value(v, variables)?;
+                    let mut v = self.compile_expression(v, variables)?;
                     vals.push(v);
                 }
                 Some(ValueCollection::Tuple(vals))

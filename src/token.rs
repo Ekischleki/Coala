@@ -85,7 +85,9 @@ impl AtomType {
 #[derive(Debug, Clone, EnumAsInner, PartialEq, Eq)]
 
 pub enum Keyword {
+    If,
     Let,
+    Else,
     Force,    
     Problem,
     Solution,

@@ -251,6 +251,33 @@ impl<'a> Parser<'a> {
 
         let statement = token_stream.next();
         match statement.token_type() {
+            TokenBlockType::Token(TokenType::Keyword(Keyword::If)) => {
+
+                token_stream.error_if_empty(self.compilation, "code block")?;
+                let condition_block = token_stream.next().into_block_type_or_error(self.compilation, Brace::Round)?;
+                let mut condition_stream = TypeStream::from_iter(condition_block.body.into_iter(), condition_block.close_token.map(|s| s.code_location().to_owned())); 
+                
+                let condition = self.parse_expression(&mut condition_stream)?;
+
+                if !condition_stream.is_empty() {
+                    self.compilation.add_error("Unexpected token", Some(condition_stream.next().code_location().to_owned()));
+                }
+
+                token_stream.error_if_empty(self.compilation, "code block")?;
+                let condition_true = token_stream.next().into_block_type_or_error(self.compilation, Brace::Curly)?;
+                let condition_true = self.parse_code_block(condition_true).unwrap_or_default();
+
+                if let Some(TokenBlockType::Token(TokenType::Keyword(Keyword::Else))) = token_stream.peek().map(|s| s.token_type()) {
+                    token_stream.next();
+                    token_stream.error_if_empty(self.compilation, "code block")?;
+                    let condition_false = token_stream.next().into_block_type_or_error(self.compilation, Brace::Curly)?;
+                    let condition_false = self.parse_code_block(condition_false).unwrap_or_default();                
+                    Some(CodeSyntax::IfElse { condition, condition_true, condition_false })
+                } else {
+                    Some(CodeSyntax::If { condition, condition_true })
+                }
+
+            }
             TokenBlockType::Token(TokenType::Keyword(Keyword::Let)) => {
                 token_stream.error_if_empty(self.compilation, "identifier")?;
 

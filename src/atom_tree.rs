@@ -74,11 +74,18 @@ impl AtomRoot {
         let mut exclude_for_now = HashSet::new(); //To stop errors, we can only replace one definition at a time.
         for (id, definition) in &self.definitions {
             if exclude_for_now.contains(id) {continue;}
-            if let Some(v) = definition.definition.as_variable() {
-                if inline_definitions.contains_key(v) {continue;}
+            match &*definition.definition {
+                AtomTree::Variable { id: v } => {
+                    if inline_definitions.contains_key(v) {continue;}
 
-                inline_definitions.insert(*id, definition.definition.to_owned());
-                exclude_for_now.insert(*v);
+                    inline_definitions.insert(*id, definition.definition.to_owned());
+                    exclude_for_now.insert(*v);
+                }
+                AtomTree::AtomType { atom } => {
+                    inline_definitions.insert(*id, definition.definition.to_owned());
+                    
+                }
+                _ => {}
             }
         }
         println!("{:#?}", inline_definitions);

@@ -37,11 +37,19 @@ impl Eq for SubstructureSyntax {}
 #[derive( Debug, Clone)]
 
 pub enum CodeSyntax {
+    If {
+        condition: ExpressionSyntax,
+        condition_true: Vec<CodeSyntax>
+    },
+    IfElse {
+        condition: ExpressionSyntax,
+        condition_true: Vec<CodeSyntax>,
+        condition_false: Vec<CodeSyntax>
+    },
     Let{
         variable: String,
         value: ExpressionSyntax,
     },
-
     Force {
         value: ExpressionSyntax,
         type_syntax: TypeSyntax,
