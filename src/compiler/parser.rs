@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{block_parser::{Block, TokenBlock, TokenBlockType}, code_location::CodeLocation, compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, syntax::{CodeSyntax, CollectionSyntax, CompositeTypeSyntax, ExpressionSyntax, FieldAssignSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypeSyntax, TypedIdentifierSyntax}, token::{self, Atom, Brace, BraceState, Delimiter, Keyword, Token, TokenType}, type_stream::TypeStream};
+use crate::compiler::{block_parser::{Block, TokenBlock, TokenBlockType}, code_location::CodeLocation, compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, syntax::{CodeSyntax, CollectionSyntax, CompositeTypeSyntax, ExpressionSyntax, FieldAssignSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypeSyntax, TypedIdentifierSyntax}, token::{self, Atom, Brace, BraceState, Delimiter, Keyword, Token, TokenType}, type_stream::TypeStream};
 
 pub struct Parser<'a> {
     //tokens: TypeStream<TokenBlock>,
@@ -8,7 +8,8 @@ pub struct Parser<'a> {
     pub composite_types: Vec<CompositeTypeSyntax>,
     pub problems: Vec<SubstructureSyntax>,
     pub collections: Vec<CollectionSyntax>,
-    pub solutions: HashMap<String, SubCallSyntax>
+    pub solutions: HashMap<String, SubCallSyntax>,
+    pub supers: HashMap<String, usize>
 }
 
 
@@ -19,6 +20,7 @@ impl<'a> Parser<'a> {
             composite_types: vec![],
             problems: vec![],
             collections: vec![],
+            supers: HashMap::default(),
             solutions: HashMap::default()
         }
     }
@@ -28,6 +30,9 @@ impl<'a> Parser<'a> {
         while !token_stream.is_empty() {
             let current_token = token_stream.next();
             match current_token.token_type() {
+                TokenBlockType::Token(TokenType::Keyword(Keyword::Super)) => {
+                     self.parse_super(token_stream);
+                }
                 TokenBlockType::Token(TokenType::Keyword(Keyword::Solution)) => {
                     if let None = token_stream.error_if_empty(self.compilation, "code block") {
                         continue;
@@ -82,7 +87,21 @@ impl<'a> Parser<'a> {
 
         Some(())
     }
+    fn parse_super(&mut self, token_stream: &mut TypeStream<TokenBlock>) -> Option<()> {
+        let identifier = token_stream.next();
+        let identifier_location = identifier.code_location().to_owned();
+        let identifier = identifier.into_identifier_or_error(self.compilation)?;
+        token_stream.next().assert_is_delimiter_or_error(self.compilation, Delimiter::Equals);
+        let int = token_stream.next().into_integer_or_error(self.compilation)?;
 
+        if self.supers.contains_key(&identifier) {
+            self.compilation.add_error("The name of this super is already in use", Some(identifier_location));
+            return None;
+        }
+        self.supers.insert(identifier, int);
+
+        Some(())
+    }
     fn parse_problem(&mut self, block: Block) {
         let mut problems = vec![];
         self.parse_sub_collection(block,&mut problems);

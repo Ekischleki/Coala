@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use phf::{phf_map, phf_set};
 
 
-use crate::token::{Atom, AtomSub, AtomType, Brace, BraceState, Delimiter, Keyword};
+use crate::compiler::token::{Atom, AtomSub, AtomType, Brace, BraceState, Delimiter, Keyword};
 
 use super::{code_location::CodeLocation, compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, file_reader::{FileReader, FileReaderError}, token::{Token, TokenType}, type_stream::TypeStream};
 
@@ -31,6 +31,8 @@ static KEYWORD_MAPPING: phf::Map<&'static str, &'static TokenType> = phf_map! {
     "if" => &TokenType::Keyword(Keyword::If),
     "else" => &TokenType::Keyword(Keyword::Else),
 
+    "output" => &TokenType::Keyword(Keyword::Output),
+
 
     "sub" => &TokenType::Keyword(Keyword::SubStructure),
     "collection" => &TokenType::Keyword(Keyword::Collection),
@@ -42,6 +44,9 @@ static KEYWORD_MAPPING: phf::Map<&'static str, &'static TokenType> = phf_map! {
 
     "not" => &TokenType::Atom(Atom::Sub(AtomSub::Not)),
     "or" => &TokenType::Atom(Atom::Sub(AtomSub::Or)),
+
+    "super" => &TokenType::Keyword(Keyword::Super),
+
 
 };
 

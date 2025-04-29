@@ -41,14 +41,18 @@ collection assert {
 #    bool: carry
 #}
 
+#Defines as super value which can only be used as a constant to expand loop macros.
+super INT_LENGTH = 16
+
 problem {
     #sub test(ArithmeticResult: arithmetic_result) { 
     #    force arithmetic_result.data => true
     #    force arithmetic_result.carry => false
     #}
     sub test(bool: a, bool: b) {
-        #let res = bit::half_adder(a, b)
-        force or (a, b) => false
+        force a => true
+        let r = or (a, b)
+        force r => false #We can now safely assume that r has to be false everywhere in the program. And since r = a or b, that means that both a and b have to be false too, meaning their definitions can also be substituted.
     }
 }
 

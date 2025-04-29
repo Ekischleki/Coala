@@ -1,10 +1,11 @@
-use crate::{code_location::CodeLocation, diagnostic::DiagnosticPipelineLocation};
+use crate::compiler::{code_location::CodeLocation, diagnostic::DiagnosticPipelineLocation, settings::Settings};
 
 use super::diagnostic::{Diagnostic, DiagnosticType};
 
 
 pub struct Compilation {
-    diagnostics: Vec<Diagnostic>
+    diagnostics: Vec<Diagnostic>,
+    settings: Settings
 }
 
 
@@ -28,9 +29,10 @@ impl Compilation {
     }
 
 
-    pub fn new() -> Self {
+    pub fn new(settings: Settings) -> Self {
         Self {
-            diagnostics: vec![]
+            diagnostics: vec![],
+            settings
         }
     }
     

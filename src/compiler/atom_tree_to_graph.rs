@@ -5,7 +5,7 @@ Emulates and compiles an AtomTree consisting of abstract logic gates into an act
 
 use std::{collections::{HashMap, HashSet}, default};
 
-use crate::{atom_tree::{AtomRoot, AtomTree, ValueAction}, token::AtomType};
+use crate::compiler::{atom_tree::{AtomRoot, AtomTree, ValueAction}, token::AtomType};
 
 pub struct AtomTreeCompiler {
     true_node: usize,

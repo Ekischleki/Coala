@@ -2,7 +2,7 @@ use std::{collections::{HashMap, HashSet}, default};
 
 use enum_as_inner::EnumAsInner;
 
-use crate::{atom_tree_to_graph::Label, compilation::Compilation, token::AtomType};
+use crate::compiler::{atom_tree_to_graph::Label, compilation::Compilation, token::AtomType};
 #[derive(Debug, Clone, Default)]
 
 pub struct AtomRoot {
@@ -13,7 +13,7 @@ pub struct AtomRoot {
 
 #[derive(Debug, Clone)]
 pub enum ValueAction {
-    Output(String),
+    Output(String, Option<AtomTree>),
     Restriction(AtomType)
 }
 
