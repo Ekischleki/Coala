@@ -109,7 +109,7 @@ pub fn tokenize<T: FileReader>(file_reader: &mut T, current_file: &PathBuf, comp
         
         
         match current_char {
-            /*
+            
             '"' => {
                 match read_string(file_reader, current_file) {
                     Ok(s) => {
@@ -120,7 +120,7 @@ pub fn tokenize<T: FileReader>(file_reader: &mut T, current_file: &PathBuf, comp
                     }
                 }
             }
-             */
+            
             '#' => {
                 loop {
                     let comment_char;
@@ -313,7 +313,7 @@ fn try_get_delim(delim: &String) -> Option<TokenType> {
     DELIM_MAPPING.get(&delim).map(|f| (*f).to_owned())
 }
 
-/*
+
 fn read_string(file_reader: &mut dyn FileReader, current_file: &PathBuf) -> Result<Token, Diagnostic> {
 
     let location_begin = file_reader.get_position();
@@ -377,10 +377,10 @@ fn read_string(file_reader: &mut dyn FileReader, current_file: &PathBuf) -> Resu
 
     return Ok(
         Token::new(
-            TokenType::ConstValue(ConstValue::String(string)),
+            TokenType::String(string),
             CodeLocation::with_section(
                 current_file.to_owned(), 
                 location_begin, 
                 file_reader.get_position())));
 }
- */
+ 

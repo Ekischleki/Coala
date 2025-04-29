@@ -55,6 +55,7 @@ pub enum TokenType {
     Identifier(String),
     Atom(Atom),
     Integer(usize),
+    String(String),
     EOF,
 }
 #[derive(Debug, Clone, EnumAsInner, PartialEq, Eq)]

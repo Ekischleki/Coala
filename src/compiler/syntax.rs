@@ -56,7 +56,6 @@ pub enum CodeSyntax {
     },
     Sub(SubCallSyntax),
     Output {
-        string_output: String,
         expression: ExpressionSyntax
     }
 
@@ -78,6 +77,7 @@ pub enum TypeSyntax {
 #[derive(Debug, Clone)]
 
 pub enum ExpressionSyntax {
+    String(String),
     Tuple(Vec<Self>),
     Variable(String),
     Access{

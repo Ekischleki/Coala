@@ -319,6 +319,10 @@ impl<'a> Parser<'a> {
                 let type_syntax = self.parse_type(token_stream)?;
                 return Some(CodeSyntax::Force { value, type_syntax }); 
             }
+            TokenBlockType::Token(TokenType::Keyword(Keyword::Output)) => {
+                let expression = self.parse_expression(token_stream)?;
+                return Some(CodeSyntax::Output { expression })
+            }
             TokenBlockType::Token(TokenType::Identifier(structure)) if token_stream.peek().is_some_and(|s| s.token_type().is_double_colon()) => {
                 token_stream.next();
                 token_stream.error_if_empty(self.compilation, "identifier")?;
@@ -351,6 +355,10 @@ impl<'a> Parser<'a> {
         let node_value_token = token_stream.next();
     
         match node_value_token.token_type() {
+            TokenBlockType::Token(TokenType::String(_)) => {
+                return Some(ExpressionSyntax::String(node_value_token.into_string_or_error(self.compilation)?));
+            }
+
             TokenBlockType::Token(TokenType::Atom(Atom::Type(t))) => {
                 return Some(ExpressionSyntax::Literal(t.to_owned()))
             }

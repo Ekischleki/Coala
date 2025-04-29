@@ -83,6 +83,17 @@ impl TokenBlock {
         return None;
     }
 
+    pub fn into_string_or_error(self, compilation: &mut Compilation) -> Option<String> {
+        let (location, token) = self.into_token_or_none();
+        if let Some(token) = token {
+            if let Ok(int) = token.into_token_type().into_string() {
+                return Some(int);
+            }
+        }
+        compilation.add_error("Expected integer", Some(location));
+        return None;
+    }
+
     pub fn assert_is_delimiter_or_error(&self, compilation: &mut Compilation, expected_delimiter: Delimiter) -> Option<()> {
         let (location, token) = self.as_token_or_none();
         if let Some(token) = token {
