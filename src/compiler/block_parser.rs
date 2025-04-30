@@ -1,4 +1,4 @@
-use crate::{code_location::CodeLocation, compilation::Compilation, token::{Brace, BraceState, Delimiter, Token, TokenType}, type_stream::TypeStream};
+use crate::compiler::{code_location::CodeLocation, compilation::Compilation, token::{Brace, BraceState, Delimiter, Token, TokenType}, type_stream::TypeStream};
 
 #[derive(Debug)]
 pub enum TokenBlock {
@@ -70,6 +70,27 @@ impl TokenBlock {
             }
         }
         compilation.add_error("Expected identifier", Some(location));
+        return None;
+    }
+    pub fn into_integer_or_error(self, compilation: &mut Compilation) -> Option<usize> {
+        let (location, token) = self.into_token_or_none();
+        if let Some(token) = token {
+            if let Ok(int) = token.into_token_type().into_integer() {
+                return Some(int);
+            }
+        }
+        compilation.add_error("Expected integer", Some(location));
+        return None;
+    }
+
+    pub fn into_string_or_error(self, compilation: &mut Compilation) -> Option<String> {
+        let (location, token) = self.into_token_or_none();
+        if let Some(token) = token {
+            if let Ok(int) = token.into_token_type().into_string() {
+                return Some(int);
+            }
+        }
+        compilation.add_error("Expected integer", Some(location));
         return None;
     }
 

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::atom_tree_to_graph::{Label, Node};
+use crate::compiler::atom_tree_to_graph::{Label, Node};
 
 pub fn export_as_csv(nodes: &Vec<Node>, buf_edges: &mut String, buf_labels: &mut String) {
     buf_labels.push_str("Id,Label,Color\n");

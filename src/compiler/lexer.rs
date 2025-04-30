@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use phf::{phf_map, phf_set};
 
 
-use crate::token::{Atom, AtomSub, AtomType, Brace, BraceState, Delimiter, Keyword};
+use crate::compiler::token::{Atom, AtomSub, AtomType, Brace, BraceState, Delimiter, Keyword};
 
 use super::{code_location::CodeLocation, compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, file_reader::{FileReader, FileReaderError}, token::{Token, TokenType}, type_stream::TypeStream};
 
@@ -31,6 +31,8 @@ static KEYWORD_MAPPING: phf::Map<&'static str, &'static TokenType> = phf_map! {
     "if" => &TokenType::Keyword(Keyword::If),
     "else" => &TokenType::Keyword(Keyword::Else),
 
+    "output" => &TokenType::Keyword(Keyword::Output),
+
 
     "sub" => &TokenType::Keyword(Keyword::SubStructure),
     "collection" => &TokenType::Keyword(Keyword::Collection),
@@ -42,6 +44,9 @@ static KEYWORD_MAPPING: phf::Map<&'static str, &'static TokenType> = phf_map! {
 
     "not" => &TokenType::Atom(Atom::Sub(AtomSub::Not)),
     "or" => &TokenType::Atom(Atom::Sub(AtomSub::Or)),
+
+    "super" => &TokenType::Keyword(Keyword::Super),
+
 
 };
 
@@ -104,7 +109,7 @@ pub fn tokenize<T: FileReader>(file_reader: &mut T, current_file: &PathBuf, comp
         
         
         match current_char {
-            /*
+            
             '"' => {
                 match read_string(file_reader, current_file) {
                     Ok(s) => {
@@ -115,7 +120,7 @@ pub fn tokenize<T: FileReader>(file_reader: &mut T, current_file: &PathBuf, comp
                     }
                 }
             }
-             */
+            
             '#' => {
                 loop {
                     let comment_char;
@@ -308,7 +313,7 @@ fn try_get_delim(delim: &String) -> Option<TokenType> {
     DELIM_MAPPING.get(&delim).map(|f| (*f).to_owned())
 }
 
-/*
+
 fn read_string(file_reader: &mut dyn FileReader, current_file: &PathBuf) -> Result<Token, Diagnostic> {
 
     let location_begin = file_reader.get_position();
@@ -372,10 +377,10 @@ fn read_string(file_reader: &mut dyn FileReader, current_file: &PathBuf) -> Resu
 
     return Ok(
         Token::new(
-            TokenType::ConstValue(ConstValue::String(string)),
+            TokenType::String(string),
             CodeLocation::with_section(
                 current_file.to_owned(), 
                 location_begin, 
                 file_reader.get_position())));
 }
- */
+ 

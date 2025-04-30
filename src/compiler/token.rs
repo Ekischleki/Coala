@@ -55,6 +55,7 @@ pub enum TokenType {
     Identifier(String),
     Atom(Atom),
     Integer(usize),
+    String(String),
     EOF,
 }
 #[derive(Debug, Clone, EnumAsInner, PartialEq, Eq)]
@@ -88,7 +89,9 @@ pub enum Keyword {
     If,
     Let,
     Else,
-    Force,    
+    Super,  
+    Force,  
+    Output,
     Problem,
     Solution,
     Composite,

@@ -2,7 +2,7 @@ use std::{collections::HashMap, hash::Hash, rc::Rc};
 
 use enum_as_inner::EnumAsInner;
 
-use crate::token::{AtomSub, AtomType};
+use crate::compiler::token::{AtomSub, AtomType};
 
 
 #[derive(Default, Debug)]
@@ -55,6 +55,9 @@ pub enum CodeSyntax {
         type_syntax: TypeSyntax,
     },
     Sub(SubCallSyntax),
+    Output {
+        expression: ExpressionSyntax
+    }
 
 }
 
@@ -74,6 +77,7 @@ pub enum TypeSyntax {
 #[derive(Debug, Clone)]
 
 pub enum ExpressionSyntax {
+    String(String),
     Tuple(Vec<Self>),
     Variable(String),
     Access{
