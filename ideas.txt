@@ -1,0 +1,37 @@
+Quality of life (No major changes to atom tree architecture):
+
+    Optional types at compile time. If you set a field of a composite type to be optional, you don't necessarily have to define it when creating the Composite type.
+
+    Outputs. They'd use the value action infrastructure to output debug messages displaying a string and a value
+
+    Variable scoping. Disallows stuff like this
+    if condition {
+        let a = false
+    } 
+    #Usage of a 
+
+    Reassigning variables within branches by using something like a selector of the variable value if the condition was met or not.
+    By not so similar reasoning, we could also allow reassigning variables within the same scope by simply replacing what it references.
+    Also kinda related:
+    Early returns for functions. Would require something similar to how conditionals are implemented.
+
+    Arrays and loops. Both of them would have to be rolled out, and are basically just macros making batch operations easier.
+
+Optimization
+    How to deal with inlining
+    1. Inline all variables
+    2. Simplify
+    3. Extract the biggest equal parts into variables
+    If a variable is inserted and then simplified (Variables would only simplify outwards), then the outer most levels of simplification will make the inlined statement shallower by n, while the rest of the structure will still stay in tact.
+    This means that this pipeline will never increase the size of a graph.
+    
+
+Functionality changes (Not possible with current Atom tree architecture)
+
+
+
+    Mutex operator (defining custom atom subs). The mutex operator would connect two nodes to make their values mutually exclusive. 
+    Using this would of course make coloring graphs hard, even with a correct solution, so you have to use them in an "atom sub" environment, in which you have to specify
+    at which inputs the atom sub fails, and with which inputs, in what way internal nodes will be colored. Verifying that they actually work can be done by the compiler
+    such as generating the color maps for inputs can also be done by the compiler. Perhaps some day even the wiring.
+    With this one could also include new labels
