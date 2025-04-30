@@ -141,7 +141,7 @@ pub fn compile(settings: &Settings) {
 
     let atom_tree_compiler = AtomTreeCompiler::new(atom_tree);
     let nodes = atom_tree_compiler.compile();
-    println!("{:#?}:{}", nodes, nodes.len());
+    //println!("{:#?}:{}", nodes, nodes.len());
 
     let mut buf_edges = String::new();
     let mut buf_labels = String::new();

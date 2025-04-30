@@ -2,6 +2,8 @@ use std::{collections::HashMap, panic::Location};
 
 use crate::compiler::{atom_tree::{AtomRoot, AtomTree}, atom_tree_to_graph::Label, compilation::Compilation, syntax::{CodeSyntax, CollectionSyntax, CompositeTypeSyntax, ExpressionSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypedIdentifierSyntax}, token::{Atom, AtomSub, AtomType}};
 
+use super::atom_tree::ValueAction;
+
 pub struct AtomTreeTranslator<'a> {
     pub collections: Vec<CollectionSyntax>,
     pub atom_tree: AtomRoot,
@@ -155,10 +157,75 @@ impl<'a> AtomTreeTranslator<'a> {
                 CodeSyntax::Sub(sub) => {
                     self.compile_sub_call(sub, &variables);
                 }
+                CodeSyntax::Output { expression } => {
+                    if !self.compilation.settings().output_code_logs {
+                        continue;
+                    }
+                    let value = self.compile_expression(expression, variables)?;
+                    let mut string_buffer = vec![];
+                    let mut value_buffer = vec![];
+                    let mut cur_str = String::new();
+                    self.format(&mut string_buffer, &mut value_buffer, value, &mut cur_str);
+                    string_buffer.push(cur_str);
+                    let condition = self.true_if_all_conditions_are_met();
+                    self.atom_tree.value_actions.push((condition, ValueAction::Output(string_buffer, value_buffer)));
+                }
                 _ => {todo!()}
             }
         }
         Some(())
+    }
+
+    fn true_if_all_conditions_are_met(&self) -> AtomTree {
+        let mut cur = AtomTree::AtomType { atom: AtomType::True };
+        for condition in &self.condition_stack {
+            cur = AtomTree::Not(AtomTree::Or(AtomTree::Not(condition.to_owned().into()).into(), AtomTree::Not(cur.into()).into()).into());
+        }
+        cur
+    }
+
+    fn format(&mut self, string_buffer: &mut Vec<String>, value_buffer: &mut Vec<AtomTree>, value: ValueCollection, current_string: &mut String) {
+        match value {
+            ValueCollection::Composite { composite_name, fields } => {
+                current_string.push_str(&composite_name);
+                current_string.push_str(" { ");
+                for (field, value) in fields {
+                    current_string.push_str(&field);
+                    current_string.push_str(": ");
+                    self.format(string_buffer, value_buffer, value, current_string);
+                    current_string.push_str(", ");
+                }
+                current_string.push_str(" } ");
+
+            }
+            ValueCollection::Single(tree) => {
+                let mut push_string = String::new();
+                std::mem::swap(current_string, &mut push_string); 
+                string_buffer.push(push_string);
+                value_buffer.push(tree);
+            }
+            ValueCollection::SingleVar(v) => {
+                let mut push_string = String::new();
+                std::mem::swap(current_string, &mut push_string); 
+                string_buffer.push(push_string);
+                value_buffer.push(AtomTree::Variable { id: v });
+            }
+            ValueCollection::Tuple(t) => {
+                current_string.push_str("(");
+                for val in t {
+                    self.format(string_buffer, value_buffer, val, current_string);
+                    current_string.push_str(", ");
+
+                }
+                current_string.push_str(")");
+            }
+            ValueCollection::Super(SuperValue::String(s)) => {
+                current_string.push_str(&s);
+            }
+            _ => {
+                self.compilation.add_error("Type cannot be formatted for outputting", None);
+            }
+        }
     }
 
     pub fn compile_sub_call(&mut self, sub_call_syntax: &SubCallSyntax, variables: &HashMap<String, ValueCollection>) -> Option<ValueCollection> {
@@ -210,6 +277,9 @@ impl<'a> AtomTreeTranslator<'a> {
     pub fn compile_expression(&mut self, value: &ExpressionSyntax, variables: &HashMap<String, ValueCollection>) -> Option<ValueCollection> {
 
         match value {
+            ExpressionSyntax::String(string) => {
+                Some(ValueCollection::Super(SuperValue::String(string.to_owned())))
+            }
             ExpressionSyntax::Access{base, field} => {
                 self.compile_expression(base, variables)?.access_identifier_or_error(field, self.compilation).cloned()
             }
@@ -278,7 +348,14 @@ pub enum ValueCollection {
     Composite {
         composite_name: String,
         fields: HashMap<String, ValueCollection>
-    }
+    },
+    Super(SuperValue)
+}
+#[derive(Clone)]
+
+pub enum SuperValue {
+    String(String),
+    Int(usize)
 }
 
 impl ValueCollection {
@@ -311,19 +388,12 @@ impl ValueCollection {
                             .collect() 
                     }
             }
-            Self::SingleVar(s) => Self::SingleVar(s)
+            Self::SingleVar(s) => Self::SingleVar(s),
+            _ => self
         }
     }
     pub fn access_identifier_or_error(&self, accessor_name: &String, compilation: &mut Compilation) -> Option<&Self> {
         match self {
-            Self::Single(_) | Self::SingleVar(_) => {
-                compilation.add_error(&format!("Cannot access field {} on a simple bool-type value", accessor_name), None);
-                None
-            },
-            Self::Tuple(_) => {
-                compilation.add_error(&format!("Cannot access field {} on an anonymous tuple", accessor_name), None);
-                None
-            }
             Self::Composite { fields, .. } => {
                 match fields.get(accessor_name) {
                     Some(s) => Some(s),
@@ -334,15 +404,14 @@ impl ValueCollection {
                     }
                 }
             }
-
+            _ => {
+                compilation.add_error(&format!("Tried to access fields on a value of this type."), None);
+                return None;
+            }
         }
     }
     pub fn access_index_or_error(&self, accessor_idx: &usize, compilation: &mut Compilation) -> Option<&Self> {
         match self {
-            Self::Single(_) | Self::SingleVar(_) => {
-                compilation.add_error(&format!("Cannot access indexed on a simple bool-type value"), None);
-                None
-            },
             Self::Tuple(fields) => {
                 match fields.get(*accessor_idx) {
                     Some(s) => Some(s),
@@ -355,7 +424,10 @@ impl ValueCollection {
             Self::Composite { fields, .. } => {
                 todo!("Indexing composite types");
             }
-
+            _ => {
+                compilation.add_error(&format!("Can't index access a value of this type."), None);
+                return None;
+            }
         }
     }
 }

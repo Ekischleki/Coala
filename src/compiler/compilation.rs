@@ -39,4 +39,8 @@ impl Compilation {
     pub fn diagnostics(&self) -> &Vec<Diagnostic> {
         &self.diagnostics
     }
+    
+    pub fn settings(&self) -> &Settings {
+        &self.settings
+    }
 }

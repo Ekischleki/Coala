@@ -13,7 +13,7 @@ pub struct AtomRoot {
 
 #[derive(Debug, Clone)]
 pub enum ValueAction {
-    Output(String, Option<AtomTree>),
+    Output(Vec<String>, Vec<AtomTree>),
     Restriction(AtomType)
 }
 

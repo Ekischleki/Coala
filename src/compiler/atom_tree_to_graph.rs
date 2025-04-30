@@ -5,6 +5,8 @@ Emulates and compiles an AtomTree consisting of abstract logic gates into an act
 
 use std::{collections::{HashMap, HashSet}, default};
 
+use enum_as_inner::EnumAsInner;
+
 use crate::compiler::{atom_tree::{AtomRoot, AtomTree, ValueAction}, token::AtomType};
 
 pub struct AtomTreeCompiler {
@@ -51,6 +53,26 @@ impl AtomTreeCompiler {
                     let node = self.compile_tree(&atom_tree);
                     Node::force_whitelist(node, &mut self, vec![r.into()]);
                 }
+                ValueAction::Output(format_string, values) => {
+                    let restriction_node = self.compile_tree(&atom_tree);
+                    let restriction_node = &self.nodes[restriction_node];
+                    if !restriction_node.label.is_true() {
+                        continue;
+                    }
+                    for i in 0..format_string.len() {
+                        let s = &format_string[i];
+                        if values.len() <= i {
+                            print!("{s}");
+                            continue;
+                        }
+                        let v = &values[i];
+                        let display_node = self.compile_tree(v);
+                        let display_node = &self.nodes[display_node];
+                        print!("{s}{:?}", display_node.label);
+                    }
+
+                    println!()
+                }
                 _ => todo!()
             }
 
@@ -71,8 +93,13 @@ impl AtomTreeCompiler {
                 self.variable_mappings.insert(var_id, var_node);
                 var_node
             }
-            AtomTree::AtomType { .. } => {
-                todo!("Filter constant values.")
+            AtomTree::AtomType { atom } => {
+                let var_node = match atom {
+                    AtomType::True => self.true_node,
+                    AtomType::False => self.false_node
+                };
+                self.variable_mappings.insert(var_id, var_node);
+                var_node
             }
             _ => {
                 let var_node = self.compile_tree(&definition);
@@ -162,7 +189,10 @@ impl AtomTreeCompiler {
                 return output;
 
             },
-            AtomTree::AtomType { .. } => panic!("Atom types should have been simplified away"),
+            AtomTree::AtomType { atom } => match atom {
+                AtomType::True => self.true_node,
+                AtomType::False => self.false_node
+            },
 
             _ => panic!()
         }
@@ -231,7 +261,7 @@ impl Node {
         }
     }
 }
-#[derive(Debug, Default, PartialEq, Hash, Eq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Hash, Eq, Clone, Copy, EnumAsInner)]
 pub enum Label {
     True,
     False,
