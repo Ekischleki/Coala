@@ -67,6 +67,9 @@ impl AtomRoot {
         self.apply_to_all_trees_mut(|atom_tree| {
             atom_tree.inline_var(&inline_definitions);
         });
+        self.apply_to_all_trees_mut(|atom_tree| {
+            atom_tree.remove_marker();
+        });
     }
 
     pub fn simp_all(&mut self, compilation: &mut Compilation) -> bool {
@@ -82,7 +85,7 @@ impl AtomRoot {
 
     pub fn finalize_simp(&mut self) {
         self.apply_to_all_trees_mut(|t| {
-            t.finalize_simp()
+            t.remove_marker()
         });
     }
 
@@ -221,15 +224,15 @@ impl AtomTree {
             _ => {}
         }
     }
-    fn finalize_simp(&mut self) {
+    fn remove_marker(&mut self) {
         match self {
             Self::DoNotRemoveMarker(m) => {
                 *self = *m.to_owned();
-                self.finalize_simp();
+                self.remove_marker();
             }
 
-            Self::Not(a) => {a.finalize_simp();},
-            Self::Or(a, b) => {a.finalize_simp(); b.finalize_simp();},
+            Self::Not(a) => {a.remove_marker();},
+            Self::Or(a, b) => {a.remove_marker(); b.remove_marker();},
             _ => {}
         }
     }
