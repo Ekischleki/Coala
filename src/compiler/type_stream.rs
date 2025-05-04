@@ -1,6 +1,6 @@
 use std::{fmt::Debug, vec::IntoIter};
 
-use crate::compiler::{block_parser::TokenBlock, code_location::CodeLocation, compilation::{self, Compilation}, token::Token};
+use crate::compiler::{block_parser::TokenBlock, code_location::CodeLocation, compilation::{Compilation}};
 
 #[derive(Debug)]
 pub struct TypeStream<T: Debug> {

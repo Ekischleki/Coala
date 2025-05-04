@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::compiler::{block_parser::{Block, TokenBlock, TokenBlockType}, code_location::CodeLocation, compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, syntax::{CodeSyntax, CollectionSyntax, CompositeTypeSyntax, ExpressionSyntax, FieldAssignSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypeSyntax, TypedIdentifierSyntax}, token::{self, Atom, Brace, BraceState, Delimiter, Keyword, Token, TokenType}, type_stream::TypeStream};
+use crate::compiler::{block_parser::{Block, TokenBlock, TokenBlockType}, compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, syntax::{CodeSyntax, CollectionSyntax, CompositeTypeSyntax, ExpressionSyntax, FieldAssignSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypeSyntax, TypedIdentifierSyntax}, token::{Atom, Brace, Delimiter, Keyword, TokenType}, type_stream::TypeStream};
 
 pub struct Parser<'a> {
     //tokens: TypeStream<TokenBlock>,

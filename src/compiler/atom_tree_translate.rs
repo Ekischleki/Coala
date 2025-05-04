@@ -1,6 +1,6 @@
-use std::{collections::HashMap, panic::Location};
+use std::collections::HashMap;
 
-use crate::compiler::{atom_tree::{AtomRoot, AtomTree}, atom_tree_to_graph::Label, compilation::Compilation, syntax::{CodeSyntax, CollectionSyntax, CompositeTypeSyntax, ExpressionSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypedIdentifierSyntax}, token::{Atom, AtomSub, AtomType}};
+use crate::compiler::{atom_tree::{AtomRoot, AtomTree}, atom_tree_to_graph::Label, compilation::Compilation, syntax::{CodeSyntax, CollectionSyntax, CompositeTypeSyntax, ExpressionSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypedIdentifierSyntax}, token::{AtomSub, AtomType}};
 
 use super::atom_tree::ValueAction;
 
@@ -247,7 +247,7 @@ impl<'a> AtomTreeTranslator<'a> {
     }
 
     pub fn compile_sub_call(&mut self, sub_call_syntax: &SubCallSyntax, variables: &HashMap<String, ValueCollection>) -> Option<ValueCollection> {
-        let mut application = match  &sub_call_syntax.application {
+        let application = match  &sub_call_syntax.application {
             Some(application) => self.compile_expression(application, &variables)?,
             None => ValueCollection::Tuple(vec![])
         };
@@ -377,7 +377,7 @@ impl<'a> AtomTreeTranslator<'a> {
             ExpressionSyntax::Tuple(t) => {
                 let mut vals = vec![];
                 for v in t {
-                    let mut v = self.compile_expression(v, variables)?;
+                    let v = self.compile_expression(v, variables)?;
                     vals.push(v);
                 }
                 Some(ValueCollection::Tuple(vals))
@@ -484,7 +484,7 @@ impl ValueCollection {
                     }
                 }
             }
-            Self::Composite { fields, .. } => {
+            Self::Composite {  .. } => {
                 todo!("Indexing composite types");
             }
             _ => {

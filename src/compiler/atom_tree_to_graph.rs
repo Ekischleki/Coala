@@ -3,7 +3,7 @@ Emulates and compiles an AtomTree consisting of abstract logic gates into an act
 */
 
 
-use std::{collections::{HashMap, HashSet}, default};
+use std::collections::{HashMap, HashSet};
 
 use enum_as_inner::EnumAsInner;
 
