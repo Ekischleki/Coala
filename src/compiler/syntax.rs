@@ -78,7 +78,13 @@ pub enum TypeSyntax {
 
 pub enum ExpressionSyntax {
     String(String),
+    Int(usize),
     Tuple(Vec<Self>),
+    Array(Vec<Self>),
+    LengthArray{
+        count: Box<Self>,
+        base: Box<Self>
+    },
     Variable(String),
     Access{
         base: Box<Self>,
@@ -88,6 +94,10 @@ pub enum ExpressionSyntax {
         base: Box<Self>,
         idx: usize,
     },
+    IndexOp {
+        base: Box<Self>,
+        index: Box<Self>
+    },
     Sub(Box<SubCallSyntax>),
     Literal(AtomType),
     CompositeConstructor{
@@ -95,6 +105,7 @@ pub enum ExpressionSyntax {
         field_assign: Vec<FieldAssignSyntax>
     }
 }
+
 
 
 #[derive(Debug, Clone)]

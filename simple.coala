@@ -1,10 +1,12 @@
 problem {
     sub test(bool: a, bool: b) {
-        force (a, not b) => false
+        let array = [a, b, or(a, b), not or(a, b)]
+        output ("This is array[3]:", array[3])
+        force array[3] => false
     }
 }
 
 
 solution {
-    test(false, true)
+    test(true, false)
 }

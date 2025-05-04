@@ -12,6 +12,6 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { color: true, optimize: false, output_code_logs: true, print_debug_logs: true, output_diagnostics: true, project_path: None, output_directory: None, ignore_errors: false,  }
+        Self { color: true, optimize: false, output_code_logs: true, print_debug_logs: false, output_diagnostics: true, project_path: None, output_directory: None, ignore_errors: false,  }
     }
 }

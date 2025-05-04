@@ -358,7 +358,9 @@ impl<'a> Parser<'a> {
             TokenBlockType::Token(TokenType::String(_)) => {
                 return Some(ExpressionSyntax::String(node_value_token.into_string_or_error(self.compilation)?));
             }
-
+            TokenBlockType::Token(TokenType::Integer(i)) => {
+                return Some(ExpressionSyntax::Int(*i));
+            }
             TokenBlockType::Token(TokenType::Atom(Atom::Type(t))) => {
                 return Some(ExpressionSyntax::Literal(t.to_owned()))
             }
@@ -381,6 +383,18 @@ impl<'a> Parser<'a> {
                 return Some(ExpressionSyntax::Sub(syntax.into()))
 
             }
+            TokenBlockType::Token(TokenType::Identifier(type_name)) if token_stream.peek().is_some_and(|s| s.token_type().is_curly_block()) => {
+                token_stream.error_if_empty(self.compilation, "code block")?;
+
+                let assign_block = token_stream.next().into_block_type_or_error(self.compilation, Brace::Curly)?;
+                let field_assign = self.parse_field_assign(assign_block)?;
+                return Some(ExpressionSyntax::CompositeConstructor { type_name: type_name.to_owned(), field_assign })
+
+            }
+            TokenBlockType::Token(TokenType::Identifier(_)) => {
+                let base = node_value_token.into_identifier_or_error(self.compilation)?;
+                return self.parse_access(token_stream, base);
+            }
 
             TokenBlockType::Token(TokenType::Atom(Atom::Sub(sub))) => {
                 let application = self.parse_expression(token_stream)?;
@@ -391,25 +405,46 @@ impl<'a> Parser<'a> {
                 return Some(ExpressionSyntax::Sub(syntax.into()))
 
             }
-            TokenBlockType::Token(TokenType::Identifier(type_name)) if token_stream.peek().is_some_and(|s| s.token_type().is_curly_block()) => {
-                token_stream.error_if_empty(self.compilation, "code block")?;
 
-                let assign_block = token_stream.next().into_block_type_or_error(self.compilation, Brace::Curly)?;
-                let field_assign = self.parse_field_assign(assign_block)?;
-                return Some(ExpressionSyntax::CompositeConstructor { type_name: type_name.to_owned(), field_assign })
-
+            TokenBlockType::Block(block) if block.is_square() => {
+                let block = match node_value_token.into_block_type_or_error(self.compilation, Brace::Square) {
+                    Some(s) => s,
+                    None => {
+                        println!("You shouldn't be here!");
+                        return None;
+                    }
+                };
+                self.parse_array_creation_syntax(block)
+                
             }
-            TokenBlockType::Token(TokenType::Identifier(base)) if token_stream.peek().is_some_and(|s| s.token_type().is_period()) => {
-                let mut chain = ExpressionSyntax::Variable(base.to_owned());
+            TokenBlockType::Block(block) if block.is_round() => {
+                let block = match node_value_token.into_block_type_or_error(self.compilation, Brace::Round) {
+                    Some(s) => s,
+                    None => {
+                        println!("You shouldn't be here!");
+                        return None;
+                    }
+                };
 
-                while let Some(TokenBlockType::Token(TokenType::Delimiter(Delimiter::Period))) = token_stream.peek().map(|s| s.token_type()) {
-                    token_stream.next().assert_is_delimiter_or_error(self.compilation, Delimiter::Period)?;
+                let elements = self.parse_comma_separated_expressions(block);
+                return Some(ExpressionSyntax::Tuple(elements));
+            }
+            _ => {
+                self.compilation.add_error("Expected expression", Some(node_value_token.code_location().to_owned()));
+                return None;
+            },
 
+        }        
+    }
+    pub fn parse_access(&mut self, token_stream: &mut TypeStream<TokenBlock>, base: String) -> Option<ExpressionSyntax> {
+        let mut chain = ExpressionSyntax::Variable(base);
 
+        while let Some(t) = token_stream.peek().map(|s| s.token_type()) {
+            match t {
+                TokenBlockType::Token(TokenType::Delimiter(Delimiter::Period)) => {
+                    token_stream.next();
                     token_stream.error_if_empty(self.compilation, "identifier")?;
-
                     let access_token = token_stream.next();
-
                     chain = match access_token.token_type() {
                         TokenBlockType::Token(TokenType::Integer(idx)) => {
                             ExpressionSyntax::AccessIdx { base: chain.into(), idx: *idx }
@@ -423,54 +458,63 @@ impl<'a> Parser<'a> {
                             return None;
                         }
                     };
+                },
+                TokenBlockType::Block(b) if b.is_square() => {
+                    let block = token_stream.next().into_block_type_or_error(self.compilation, Brace::Square)?;
+                    let mut token_stream = TypeStream::from_iter(block.body.into_iter(), block.close_token.map(|s| s.code_location().to_owned()));
+                    let index = self.parse_expression(&mut token_stream)?;
+                    token_stream.error_if_not_empty(self.compilation);
+                    chain = ExpressionSyntax::IndexOp { base: chain.into(), index: index.into() };
+                },
+                _ => break,
+            }
+        }
+        return Some(chain);
+    }
+    pub fn parse_array_creation_syntax(&mut self, block: Block) -> Option<ExpressionSyntax> {
+        if block.body.len() == 0 {
+            return Some(ExpressionSyntax::Array(vec![]))
+        }
+        if block.body.iter().filter(|f| f.token_type() == TokenBlockType::Token(&TokenType::Delimiter(Delimiter::Semicolon))).count() == 1 {
 
+            let mut token_stream = TypeStream::from_iter(block.body.into_iter(), block.close_token.map(|f| f.code_location().to_owned()));
+            let base_element = self.parse_expression(&mut token_stream)?;
+            token_stream.next().assert_is_delimiter_or_error(self.compilation, Delimiter::Semicolon);
+            let count = self.parse_expression(&mut token_stream)?;
+            return Some(ExpressionSyntax::LengthArray{count: count.into(), base: base_element.into()})
+        }
+
+        let elements =  self.parse_comma_separated_expressions(block);
+        Some(ExpressionSyntax::Array(elements))
+        
+    }
+
+    pub fn parse_comma_separated_expressions(&mut self, block: Block) -> Vec<ExpressionSyntax> {
+
+        let mut token_stream = TypeStream::from_iter(block.body.into_iter(), block.close_token.map(|f| f.code_location().to_owned()));
+
+        let mut enumeration = vec![];
+
+        while !token_stream.is_empty() {
+
+            match self.parse_expression(&mut token_stream) {
+                Some(s) => enumeration.push(s),
+                None => {}
+            }
+            if token_stream.is_empty() {
+                break;
+            }
+            let separator_token = token_stream.next();
+            match separator_token.token_type() {
+                TokenBlockType::Token(TokenType::Delimiter(Delimiter::Comma)) => {
+                    continue;
                 }
-                return Some(chain);
-            }
-            TokenBlockType::Token(TokenType::Identifier(name)) => {
-
-                return Some(ExpressionSyntax::Variable(name.to_owned()));
-            }
-            TokenBlockType::Block(block) if block.is_round() => {
-                let block = match node_value_token.into_block_type_or_error(self.compilation, Brace::Round) {
-                    Some(s) => s,
-                    None => {
-                        println!("You shouldn't be here!");
-                        return None;
-                    }
-                };
-
-                let mut token_stream = TypeStream::from_iter(block.body.into_iter(), block.close_token.map(|f| f.code_location().to_owned()));
-
-                let mut enumeration = vec![];
-
-                while !token_stream.is_empty() {
-
-                    match self.parse_expression(&mut token_stream) {
-                        Some(s) => enumeration.push(s),
-                        None => {}
-                    }
-                    if token_stream.is_empty() {
-                        break;
-                    }
-                    let tuple_token = token_stream.next();
-                    match tuple_token.token_type() {
-                        TokenBlockType::Token(TokenType::Delimiter(Delimiter::Comma)) => {
-                            continue;
-                        }
-                        _ => {
-                            self.compilation.add_error("Expected ) or ,", Some(tuple_token.code_location().to_owned()));
-                        }
-                    }
+                _ => {
+                    self.compilation.add_error("Expected ) or ,", Some(separator_token.code_location().to_owned()));
                 }
-                return Some(ExpressionSyntax::Tuple(enumeration));
             }
-            _ => {
-                self.compilation.add_error("Expected expression", Some(node_value_token.code_location().to_owned()));
-                return None;
-            },
-
-        }        
+        }
+        return enumeration;
     }
 
     pub fn parse_field_assign(&mut self, block: Block) -> Option<Vec<FieldAssignSyntax>> {

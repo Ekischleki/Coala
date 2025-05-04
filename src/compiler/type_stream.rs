@@ -23,7 +23,16 @@ impl<T: Debug> Iterator for TypeStream<T> {
 }
 
 
-
+impl TypeStream<TokenBlock> {
+    pub fn error_if_not_empty(&self, compilation: &mut Compilation) -> Option<()> {
+        if let Some(t) = &self.next {
+            compilation.add_error(&format!("Unexpected token."), self.end.clone().map(|end| t.code_location().to(&end)));
+            None
+        } else {
+            Some(())
+        }
+    }
+}
 impl<T: Debug> TypeStream<T> {
     pub fn error_if_empty(&self, compilation: &mut Compilation, expected: &str) -> Option<()> {
         if self.is_empty() {
@@ -33,6 +42,7 @@ impl<T: Debug> TypeStream<T> {
             Some(())
         }
     }
+
     pub fn is_empty(&self) -> bool {
         self.next.is_none()
     }
@@ -58,7 +68,7 @@ impl<T: Debug> TypeStream<T> {
         
         match self.next.take() {
             Some(t) => {
-                println!("Consumed {:#?}", t);
+                //println!("Consumed {:#?}", t);
                 self.next = self.tokens.next();
                 return t;
             }

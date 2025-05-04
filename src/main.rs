@@ -25,18 +25,24 @@ fn parse_args() -> Settings {
             "-o" => {
                 settings.output_directory = args.next();
             }
-
+            "--dev" => {
+                settings.print_debug_logs = true;
+            }
             _ => {}
         }
     }
+
     settings
 }
 
 fn main() {
     let settings = if args().count() == 1 {
         Settings {
-            ignore_errors: true,
-            project_path: Some("./wip.coala".into()),
+            ignore_errors: false,
+            optimize: false,
+            output_code_logs: true,
+            print_debug_logs: false,
+            project_path: Some("./simple.coala".into()),
             ..Default::default()
         }
     } else {

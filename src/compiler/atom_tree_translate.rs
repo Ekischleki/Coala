@@ -186,6 +186,24 @@ impl<'a> AtomTreeTranslator<'a> {
 
     fn format(&mut self, string_buffer: &mut Vec<String>, value_buffer: &mut Vec<AtomTree>, value: ValueCollection, current_string: &mut String) {
         match value {
+            ValueCollection::Super(SuperValue::Int(i)) => {
+                current_string.push_str(&i.to_string());
+            }
+            ValueCollection::Super(SuperValue::String(s)) => {
+                current_string.push_str(&s);
+            }
+            ValueCollection::Array { items } => {
+                current_string.push_str("[");
+                for val in items {
+                    match val {
+                        Some(s) => self.format(string_buffer, value_buffer, s, current_string),
+                        None => current_string.push_str(" ")
+                    }
+                    current_string.push_str(", ");
+
+                }
+                current_string.push_str("]");
+            }
             ValueCollection::Composite { composite_name, fields } => {
                 current_string.push_str(&composite_name);
                 current_string.push_str(" { ");
@@ -277,6 +295,24 @@ impl<'a> AtomTreeTranslator<'a> {
     pub fn compile_expression(&mut self, value: &ExpressionSyntax, variables: &HashMap<String, ValueCollection>) -> Option<ValueCollection> {
 
         match value {
+            ExpressionSyntax::Array(expressions) => {
+                let items = expressions.iter().map(|exp| self.compile_expression(exp, variables)).collect();
+                Some(ValueCollection::Array { items })
+            }
+            ExpressionSyntax::LengthArray { count, base } => {
+                let count = self.compile_expression(&count, variables)?;
+                let expression = self.compile_expression(&base, variables);
+                match count {
+                    ValueCollection::Super(SuperValue::Int(count)) => {
+                        let items = vec![expression; count];
+                        Some(ValueCollection::Array { items })
+                    },
+                    _ => {self.compilation.add_error("Expected integer", None); None} 
+                }
+            }
+            ExpressionSyntax::Int(i) => {
+                Some(ValueCollection::Super(SuperValue::Int(*i)))
+            }
             ExpressionSyntax::String(string) => {
                 Some(ValueCollection::Super(SuperValue::String(string.to_owned())))
             }
@@ -285,6 +321,20 @@ impl<'a> AtomTreeTranslator<'a> {
             }
             ExpressionSyntax::AccessIdx{base, idx} => {
                 self.compile_expression(base, variables)?.access_index_or_error(idx, self.compilation).cloned()
+            }
+            ExpressionSyntax::IndexOp { base, index } => {
+                let index = self.compile_expression(index, variables)?.get_as_int_or_error(self.compilation)?;;
+                if let ValueCollection::Array { items } = self.compile_expression(&base, variables)? {
+                    if let Some(e) = items.get(index) {
+                        e.to_owned()
+                    } else {
+                        self.compilation.add_error("Index was out of bounds", None);
+                        None
+                    }
+                } else {
+                    self.compilation.add_error("You can only use the index operation on array types", None);
+                    None
+                }
             }
             ExpressionSyntax::CompositeConstructor { type_name, field_assign } => {
                 let composite = match self.find_composite(type_name) {
@@ -335,6 +385,7 @@ impl<'a> AtomTreeTranslator<'a> {
             ExpressionSyntax::Sub(sub_call_syntax) => {
                 self.compile_sub_call(sub_call_syntax, variables)
             }
+            _ => todo!("Compiling {:?} hasn't been implemented", value)
         }
 
     }
@@ -342,6 +393,9 @@ impl<'a> AtomTreeTranslator<'a> {
 
 #[derive(Clone)]
 pub enum ValueCollection {
+    Array {
+        items: Vec<Option<ValueCollection>>
+    },
     SingleVar(usize),
     Single(AtomTree),
     Tuple(Vec<Self>),
@@ -359,6 +413,15 @@ pub enum SuperValue {
 }
 
 impl ValueCollection {
+    pub fn get_as_int_or_error(self, compilation: &mut Compilation) -> Option<usize> {
+        match self {
+            Self::Super(SuperValue::Int(i)) => Some(i),
+            _ => {
+                compilation.add_error("Expected super integer value", None);
+                None
+            }
+        }
+    }
     pub fn get_as_atom_tree_if_single_or_error(self, compilation: &mut Compilation) -> Option<AtomTree> {
         match self {
             Self::SingleVar(id) => Some(AtomTree::Variable { id }),

@@ -58,36 +58,14 @@ problem {
     #    force arithmetic_result.carry => false
     #}
     sub test(bool: a, bool: b) {
-        let arithmetic_result = bit::full_adder(false, false, false)
-        output arithmetic_result
-
-        let arithmetic_result = bit::full_adder(false, false, true)
-        output arithmetic_result
-
-        let arithmetic_result = bit::full_adder(false, true, false)
-        output arithmetic_result
-
-        let arithmetic_result = bit::full_adder(false, true, true)
-        output arithmetic_result
-
-        let arithmetic_result = bit::full_adder(true, false, false)
-        output arithmetic_result
-
-        let arithmetic_result = bit::full_adder(true, false, true)
-        output arithmetic_result
-
-        let arithmetic_result = bit::full_adder(true, true, false)
-        output arithmetic_result
-        
-        let arithmetic_result = bit::full_adder(true, true, true)
-        output arithmetic_result
-
+        let array = [1, 2, 3, 4]
+        let array_2 = [(); 15]
     }
 }
 
 
 solution {
-    test(true, true)
+    test(false, true)
 }
 
 

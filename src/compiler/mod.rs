@@ -28,6 +28,8 @@ mod block_parser;
 fn end_compilation(settings: &Settings, compilation: &Compilation) {
     if !compilation.is_error_free() {
         println!("Compilation finished with errors.")
+    } else {
+        println!("Compilation finished without errors.")
     }
     if settings.output_diagnostics {
         for diagnostic in compilation.diagnostics() {
@@ -58,7 +60,7 @@ fn end_compilation(settings: &Settings, compilation: &Compilation) {
 }
 
 pub fn compile(settings: &Settings) {
-
+    println!("Loading project...");
     let project = &settings.project_path;
     let mut compilation = Compilation::new(settings.to_owned());
     let file: String;
@@ -81,13 +83,17 @@ pub fn compile(settings: &Settings) {
     
     let mut file_reader = StringFileReader::new();
     file_reader.reset_to_file(&file).unwrap();
+    println!("Compiling project to IR...");
 
     let tokens = lexer::tokenize(&mut file_reader, &file, &mut compilation).unwrap();
-
-    println!("{:#?}", tokens);
+    if settings.print_debug_logs {
+        println!("{:#?}", tokens);
+    }
 
     let mut tokens = block_parser::TokenBlock::from_token_stream(tokens, &mut compilation).unwrap();
-    println!("{:#?}", tokens);
+    if settings.print_debug_logs {
+        println!("{:#?}", tokens);
+    }
     //Brace errors tend to be heavy and have a lot of side effects, so we'll stop here if any are found to not confuse the user
     if !(settings.ignore_errors || compilation.is_error_free()) {
         end_compilation(settings, &compilation);
@@ -97,16 +103,18 @@ pub fn compile(settings: &Settings) {
     let mut parser = Parser::new(&mut compilation);
     parser.parse_file(&mut tokens);
     let collections = parser.collections;
-    println!("Collections: {:#?}", collections);
-
+    
     let problems = parser.problems;
-    println!("Problems: {:#?}", problems);
-
+    
     let solutions = parser.solutions;
-    println!("Solutions: {:#?}", solutions);
-
+    
     let composites = parser.composite_types;
-    println!("Composites: {:#?}", composites);
+    if settings.print_debug_logs {
+        println!("Collections: {:#?}", collections);
+        println!("Problems: {:#?}", problems);
+        println!("Solutions: {:#?}", solutions);
+        println!("Composites: {:#?}", composites);
+    }
 
     if !(settings.ignore_errors || compilation.is_error_free()) {
         end_compilation(settings, &compilation);
@@ -114,34 +122,50 @@ pub fn compile(settings: &Settings) {
     }
     let atom_tree_translator = AtomTreeTranslator::new(&mut compilation, collections, composites);
     let mut atom_tree = atom_tree_translator.convert(problems, solutions);
-    println!("{:#?}", atom_tree);
+    if settings.print_debug_logs {
+        println!("{:#?}", atom_tree);
+    }
     if settings.optimize {
         while atom_tree.remove_links() {
-            println!("{:#?}", atom_tree);
+            if settings.print_debug_logs {
+                println!("{:#?}", atom_tree);
+            }
         }
 
         while atom_tree.inline_vars() {
-            println!("{:#?}", atom_tree);
+            if settings.print_debug_logs {
+                println!("{:#?}", atom_tree);
+            }
         } 
 
         while atom_tree.simp_all(&mut compilation) {
-            println!("{:#?}", atom_tree);
-            while atom_tree.remove_links() {
+            if settings.print_debug_logs {
                 println!("{:#?}", atom_tree);
             }
+            while atom_tree.remove_links() {
+                if settings.print_debug_logs {
+                    println!("{:#?}", atom_tree);
+                }
+            }
             while atom_tree.inline_vars() {
-                println!("{:#?}", atom_tree);
+                if settings.print_debug_logs {
+                    println!("{:#?}", atom_tree);
+                }
             }        
 
         }
     }
 
     atom_tree.finalize_simp();
-    println!("{:#?}", atom_tree);
+    if settings.print_debug_logs {
+        println!("{:#?}", atom_tree);
+    }
+    println!("Compiling and running IR...");
 
     let atom_tree_compiler = AtomTreeCompiler::new(atom_tree);
     let nodes = atom_tree_compiler.compile();
     //println!("{:#?}:{}", nodes, nodes.len());
+    println!("Exporting compilation results...");
 
     let mut buf_edges = String::new();
     let mut buf_labels = String::new();

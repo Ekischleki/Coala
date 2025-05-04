@@ -4,7 +4,7 @@
 #Problem is a special kind of structure. Each substructure will be treated as an entry point for solving the graph
 #If you want to solve it, you have to supply a solution to each substructure in main 
 problem {
-    sub and_solver takes(b: a, b: b) {    #Type b is a true or false type, falling into a 2-color space
+    sub and_solver takes(b: a, b: b) {  
         let res = b::and(a, b);
         force res => b::true;
     } 
