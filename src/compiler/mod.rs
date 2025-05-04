@@ -83,7 +83,7 @@ pub fn compile(settings: &Settings) {
     
     let mut file_reader = StringFileReader::new();
     file_reader.reset_to_file(&file).unwrap();
-    println!("Compiling project to IR...");
+    println!("Lexing project...");
 
     let tokens = lexer::tokenize(&mut file_reader, &file, &mut compilation).unwrap();
     if settings.print_debug_logs {
@@ -99,6 +99,7 @@ pub fn compile(settings: &Settings) {
         end_compilation(settings, &compilation);
         return;
     }
+    println!("Parsing project...");
 
     let mut parser = Parser::new(&mut compilation);
     parser.parse_file(&mut tokens);
@@ -120,6 +121,7 @@ pub fn compile(settings: &Settings) {
         end_compilation(settings, &compilation);
         return;
     }
+    println!("Compiling project to IR...");
     let atom_tree_translator = AtomTreeTranslator::new(&mut compilation, collections, composites);
     let mut atom_tree = atom_tree_translator.convert(problems, solutions);
     if settings.print_debug_logs {

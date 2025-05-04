@@ -7,15 +7,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'cotala'",
+            "name": "Debug executable 'coala'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=cotala",
-                    "--package=cotala"
+                    "--bin=coala",
+                    "--package=coala"
                 ],
                 "filter": {
-                    "name": "cotala",
+                    "name": "coala",
                     "kind": "bin"
                 }
             },
@@ -25,16 +25,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'cotala'",
+            "name": "Debug unit tests in executable 'coala'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=cotala",
-                    "--package=cotala"
+                    "--bin=coala",
+                    "--package=coala"
                 ],
                 "filter": {
-                    "name": "cotala",
+                    "name": "coala",
                     "kind": "bin"
                 }
             },

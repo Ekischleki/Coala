@@ -270,6 +270,7 @@ impl<'a> Parser<'a> {
 
         let statement = token_stream.next();
         match statement.token_type() {
+
             TokenBlockType::Token(TokenType::Keyword(Keyword::If)) => {
 
                 token_stream.error_if_empty(self.compilation, "code block")?;
@@ -339,6 +340,13 @@ impl<'a> Parser<'a> {
                 };
                 return Some(CodeSyntax::Sub(syntax.into()))
 
+            }
+            TokenBlockType::Token(TokenType::Identifier(_)) => {
+                let variable = statement.into_identifier_or_error(self.compilation)?;
+                token_stream.error_if_empty(self.compilation, "=")?;
+                token_stream.next().assert_is_delimiter_or_error(self.compilation, Delimiter::Equals);
+                let value = self.parse_expression(token_stream)?;
+                return Some(CodeSyntax::ReassignSyntax { variable, value });
             }
             _ => {
                 self.compilation.add_diagnostic(Diagnostic::new(DiagnosticType::Error, format!("Unexpected token"), Some(statement.code_location().to_owned()), DiagnosticPipelineLocation::Parsing));

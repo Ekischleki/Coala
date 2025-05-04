@@ -1,12 +1,15 @@
 problem {
-    sub test(bool: a, bool: b) {
-        let array = [a, b, or(a, b), not or(a, b)]
-        output ("This is array[3]:", array[3])
-        force array[3] => false
+    sub test(bool: a) {
+        let select = false
+        if (a) {
+            select = a
+        }
+        force select => false
     }
 }
 
 
 solution {
-    test(true, false)
+    test(true)
 }
+

@@ -123,10 +123,41 @@ impl<'a> AtomTreeTranslator<'a> {
             Some(ValueCollection::Tuple(vec![]))
         }
     }
-
+    pub fn select_if_conditions_met(&mut self, select_if_true: AtomTree, select_if_false: AtomTree) -> AtomTree {
+        let condition = self.true_if_all_conditions_are_met();
+        //Selector, selecting new value if condition is met and old value otherwise
+        let selected_at_true = AtomTree::Not(
+            AtomTree::Or(
+                AtomTree::Not(condition.clone().into()).into(), 
+                AtomTree::Not(select_if_true.into()).into()
+            ).into()
+        );
+        let selected_at_false = AtomTree::Not(
+            AtomTree::Or(
+                condition.into(), 
+                AtomTree::Not(select_if_false.into()).into()
+            ).into()
+        );
+        let selected = AtomTree::Or(selected_at_true.into(), selected_at_false.into());
+        selected
+    }
     pub fn compile_code_block(&mut self, block: &Vec<CodeSyntax>, variables: &mut HashMap<String, ValueCollection>) -> Option<()> {
         for statement in block {
             match statement {
+                CodeSyntax::ReassignSyntax { variable, value } => {
+                    let value = self.compile_expression(value, variables)?;
+                    let var = if let Some(v) = variables.get_mut(variable) {
+                        v
+                    } else {
+                        self.compilation.add_error(&format!("Variable {variable} not found in current scope."), None);
+                        continue;
+                    };
+                    let new_value = value.get_as_atom_tree_if_single_or_error(self.compilation)?;
+                    let old_value = var.clone().get_as_atom_tree_if_single_or_error(self.compilation)?;
+                    let selected = self.select_if_conditions_met(new_value, old_value);
+                    println!("Selected: {:#?}", selected);
+                    *var = ValueCollection::Single(selected);
+                }
                 //A conditional code block only changes force statements to always be valid iff the condition is not met
                 CodeSyntax::If { condition, condition_true } => {
                     let condition = self.compile_expression(condition, variables)?.write_as_var(self).get_as_atom_tree_if_single_or_error(self.compilation)?;

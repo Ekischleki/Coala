@@ -39,9 +39,9 @@ fn main() {
     let settings = if args().count() == 1 {
         Settings {
             ignore_errors: false,
-            optimize: false,
+            optimize: true,
             output_code_logs: true,
-            print_debug_logs: false,
+            print_debug_logs: true,
             project_path: Some("./simple.coala".into()),
             ..Default::default()
         }

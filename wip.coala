@@ -13,6 +13,12 @@ collection bool {
     sub eq(bool: a, bool: b) {} = bool::xnor(a, b)
 }
 collection bit {
+    # Selects a if select is true, selects b otherwise
+    sub select(bool: a, bool: b, bool: select) {
+        let select_a = bool::and(a, select)
+        let select_b = bool::and(b, not select)
+    } = or (select_a, select_b)
+
     sub full_adder(bool: a, bool: b, bool: c) {
         let a_xor_b = bool::xor(a, b)
         let data = bool::xor(c, a_xor_b)
@@ -53,13 +59,8 @@ composite ArithmeticResult {
 super INT_LENGTH = 16
 
 problem {
-    #sub test(ArithmeticResult: arithmetic_result) { 
-    #    force arithmetic_result.data => true
-    #    force arithmetic_result.carry => false
-    #}
     sub test(bool: a, bool: b) {
-        let array = [1, 2, 3, 4]
-        let array_2 = [(); 15]
+        output bit::select(a, b, false)
     }
 }
 
