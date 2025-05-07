@@ -1,10 +1,7 @@
 problem {
     sub test(bool: a) {
-        let select = false
-        if (a) {
-            select = a
-        }
-        force select => false
+        let arr = [a; 15]
+        arr[0] = false
     }
 }
 

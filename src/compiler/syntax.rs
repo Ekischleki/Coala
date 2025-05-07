@@ -38,7 +38,7 @@ impl Eq for SubstructureSyntax {}
 
 pub enum CodeSyntax {
     ReassignSyntax {
-        variable: String,
+        variable: ExpressionSyntax,
         value: ExpressionSyntax
     },
     If {

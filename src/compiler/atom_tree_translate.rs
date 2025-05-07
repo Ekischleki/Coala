@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Pointer};
 
 use crate::compiler::{atom_tree::{AtomRoot, AtomTree}, atom_tree_to_graph::Label, compilation::Compilation, syntax::{CodeSyntax, CollectionSyntax, CompositeTypeSyntax, ExpressionSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypedIdentifierSyntax}, token::{AtomSub, AtomType}};
 
@@ -123,8 +123,7 @@ impl<'a> AtomTreeTranslator<'a> {
             Some(ValueCollection::Tuple(vec![]))
         }
     }
-    pub fn select_if_conditions_met(&mut self, select_if_true: AtomTree, select_if_false: AtomTree) -> AtomTree {
-        let condition = self.true_if_all_conditions_are_met();
+    pub fn select_if_conditions_met(select_if_true: AtomTree, select_if_false: AtomTree, condition: AtomTree) -> AtomTree {
         //Selector, selecting new value if condition is met and old value otherwise
         let selected_at_true = AtomTree::Not(
             AtomTree::Or(
@@ -141,20 +140,22 @@ impl<'a> AtomTreeTranslator<'a> {
         let selected = AtomTree::Or(selected_at_true.into(), selected_at_false.into());
         selected
     }
+
     pub fn compile_code_block(&mut self, block: &Vec<CodeSyntax>, variables: &mut HashMap<String, ValueCollection>) -> Option<()> {
+        let compilation = unsafe {self.extract_compilation()};
         for statement in block {
             match statement {
                 CodeSyntax::ReassignSyntax { variable, value } => {
-                    let value = self.compile_expression(value, variables)?;
-                    let var = if let Some(v) = variables.get_mut(variable) {
-                        v
-                    } else {
-                        self.compilation.add_error(&format!("Variable {variable} not found in current scope."), None);
-                        continue;
-                    };
-                    let new_value = value.get_as_atom_tree_if_single_or_error(self.compilation)?;
-                    let old_value = var.clone().get_as_atom_tree_if_single_or_error(self.compilation)?;
-                    let selected = self.select_if_conditions_met(new_value, old_value);
+                    let condition = self.true_if_all_conditions_are_met();
+
+                    let new_value = self.compile_expression(value, variables)?.get_as_atom_tree_if_single_or_error(self.compilation)?;
+
+
+                    let var = self.compile_access_expression(variable, variables)?;
+
+                    let old_value = var.clone().get_as_atom_tree_if_single_or_error(compilation)?;
+
+                    let selected = Self::select_if_conditions_met(new_value, old_value, condition);
                     println!("Selected: {:#?}", selected);
                     *var = ValueCollection::Single(selected);
                 }
@@ -217,6 +218,9 @@ impl<'a> AtomTreeTranslator<'a> {
 
     fn format(&mut self, string_buffer: &mut Vec<String>, value_buffer: &mut Vec<AtomTree>, value: ValueCollection, current_string: &mut String) {
         match value {
+            ValueCollection::Error => {
+                current_string.push_str("<Error>");
+            }
             ValueCollection::Super(SuperValue::Int(i)) => {
                 current_string.push_str(&i.to_string());
             }
@@ -226,10 +230,8 @@ impl<'a> AtomTreeTranslator<'a> {
             ValueCollection::Array { items } => {
                 current_string.push_str("[");
                 for val in items {
-                    match val {
-                        Some(s) => self.format(string_buffer, value_buffer, s, current_string),
-                        None => current_string.push_str(" ")
-                    }
+
+                    self.format(string_buffer, value_buffer, val, current_string);
                     current_string.push_str(", ");
 
                 }
@@ -322,17 +324,17 @@ impl<'a> AtomTreeTranslator<'a> {
         
         }
     }
-
+    
     pub fn compile_expression(&mut self, value: &ExpressionSyntax, variables: &HashMap<String, ValueCollection>) -> Option<ValueCollection> {
-
+        let compilation = unsafe {self.extract_compilation()};
         match value {
             ExpressionSyntax::Array(expressions) => {
-                let items = expressions.iter().map(|exp| self.compile_expression(exp, variables)).collect();
+                let items = expressions.iter().map(|exp| self.compile_expression(exp, variables).unwrap_or_default()).collect();
                 Some(ValueCollection::Array { items })
             }
             ExpressionSyntax::LengthArray { count, base } => {
                 let count = self.compile_expression(&count, variables)?;
-                let expression = self.compile_expression(&base, variables);
+                let expression = self.compile_expression(&base, variables).unwrap_or_default();
                 match count {
                     ValueCollection::Super(SuperValue::Int(count)) => {
                         let items = vec![expression; count];
@@ -348,24 +350,15 @@ impl<'a> AtomTreeTranslator<'a> {
                 Some(ValueCollection::Super(SuperValue::String(string.to_owned())))
             }
             ExpressionSyntax::Access{base, field} => {
-                self.compile_expression(base, variables)?.access_identifier_or_error(field, self.compilation).cloned()
+                self.compile_access_expression(&base, variables)?.access_identifier_or_error(field, compilation).cloned() 
+
             }
             ExpressionSyntax::AccessIdx{base, idx} => {
-                self.compile_expression(base, variables)?.access_index_or_error(idx, self.compilation).cloned()
+                self.compile_access_expression(&base, variables)?.access_index_or_error(idx, compilation).cloned()
             }
-            ExpressionSyntax::IndexOp { base, index } => {
-                let index = self.compile_expression(index, variables)?.get_as_int_or_error(self.compilation)?;;
-                if let ValueCollection::Array { items } = self.compile_expression(&base, variables)? {
-                    if let Some(e) = items.get(index) {
-                        e.to_owned()
-                    } else {
-                        self.compilation.add_error("Index was out of bounds", None);
-                        None
-                    }
-                } else {
-                    self.compilation.add_error("You can only use the index operation on array types", None);
-                    None
-                }
+            ExpressionSyntax::IndexOp { base, index: idx } => {
+                let idx = self.compile_expression(idx, variables)?.get_as_int_or_error(self.compilation)?;
+                self.compile_access_expression(&base, variables)?.access_indexed_or_error(&idx, compilation).cloned()
             }
             ExpressionSyntax::CompositeConstructor { type_name, field_assign } => {
                 let composite = match self.find_composite(type_name) {
@@ -418,14 +411,50 @@ impl<'a> AtomTreeTranslator<'a> {
             }
             _ => todo!("Compiling {:?} hasn't been implemented", value)
         }
+        
+    }
+    //Made for recursive mutable functions that return a mutable reference related to self, that doesn't require a mutable reference to self
+    pub unsafe fn extract_compilation(&mut self) -> &'a mut Compilation {
+        let compilation = &mut *(self.compilation as *mut Compilation);
+        compilation
+    }
+    pub unsafe fn extract<T>(s: &mut T) -> &mut T {
+        let s = &mut *(s as *mut T);
+        s
+    }
 
+    pub fn compile_access_expression(&mut self, value: &ExpressionSyntax, variables: &HashMap<String, ValueCollection>) -> Option<&mut ValueCollection> {
+        let compilation = unsafe {self.extract_compilation()};
+        match value {
+            ExpressionSyntax::Access { base, field } => {
+                let base = self.compile_access_expression(base, variables)?;
+                base.access_identifier_or_error(field, compilation)
+            }
+            ExpressionSyntax::AccessIdx { base, idx } => {
+                let base = self.compile_access_expression(base, variables)?;
+                base.access_index_or_error(idx, compilation)
+
+            }
+            ExpressionSyntax::IndexOp { base, index } => {
+                let index = self.compile_expression(index, variables)?.get_as_int_or_error(self.compilation)?;
+                let base = self.compile_access_expression(base, variables)?;
+                base.access_indexed_or_error(&index, compilation)
+            }
+            _ => {
+                compilation.add_error("Internal: Expected access expression (Should've been caught during parsing)", None);
+                None
+            }
+            
+        }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default, Debug)]
 pub enum ValueCollection {
+    #[default]
+    Error,
     Array {
-        items: Vec<Option<ValueCollection>>
+        items: Vec<ValueCollection>
     },
     SingleVar(usize),
     Single(AtomTree),
@@ -436,7 +465,7 @@ pub enum ValueCollection {
     },
     Super(SuperValue)
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 
 pub enum SuperValue {
     String(String),
@@ -486,41 +515,66 @@ impl ValueCollection {
             _ => self
         }
     }
-    pub fn access_identifier_or_error(&self, accessor_name: &String, compilation: &mut Compilation) -> Option<&Self> {
+    pub fn access_identifier_or_error(&mut self, accessor_name: &String, compilation: &mut Compilation) -> Option<&mut Self> {
         match self {
-            Self::Composite { fields, .. } => {
-                match fields.get(accessor_name) {
-                    Some(s) => Some(s),
-                    None => {
-                        compilation.add_error(&format!("Cannot access field {} on this type", accessor_name), None);
+            Self::Composite { fields, .. } => 
+                {
+                    if let Some(field) = fields.get_mut(accessor_name) {
+                        Some(field)
+                    } else {
+                        compilation.add_error(&format!("Field \"{}\" not found in composite type", accessor_name), None);
                         None
-        
                     }
+                },
+            
+            _ => 
+                {
+                    compilation.add_error(&format!("Tried to access fields on a value of this type."), None);
+                    None
                 }
-            }
-            _ => {
-                compilation.add_error(&format!("Tried to access fields on a value of this type."), None);
-                return None;
-            }
+
+            
         }
     }
-    pub fn access_index_or_error(&self, accessor_idx: &usize, compilation: &mut Compilation) -> Option<&Self> {
+    pub fn access_indexed_or_error(&mut self, idx: &usize, compilation: &mut Compilation) -> Option<&mut Self> {
         match self {
-            Self::Tuple(fields) => {
-                match fields.get(*accessor_idx) {
-                    Some(s) => Some(s),
+            Self::Array { items } => {
+                let item_len = items.len();
+                match items.get_mut(*idx) {
+                    Some(field) => Some(field),
                     None => {
-                        compilation.add_error(&format!("Index {} is out of bounds for tuple with size {}", accessor_idx, fields.len()), None);
+                        compilation.add_error(&format!("Index {} is out of bounds for array with size {}", idx, item_len), None);
                         None
                     }
                 }
-            }
-            Self::Composite {  .. } => {
-                todo!("Indexing composite types");
+                    
             }
             _ => {
                 compilation.add_error(&format!("Can't index access a value of this type."), None);
-                return None;
+                None
+            }
+        }
+    }
+    pub fn access_index_or_error(&mut self, accessor_idx: &usize, compilation: &mut Compilation) -> Option<&mut Self> {
+        match self {
+            Self::Tuple(fields) => {
+                let field_len = fields.len();
+                match fields.get_mut(*accessor_idx) {
+                    Some(field) => Some(field),
+                    None => {
+                        compilation.add_error(&format!("Index {} is out of bounds for tuple with size {}", accessor_idx, field_len), None);
+                        None
+                    }
+                }
+                    
+            }
+            Self::Composite {  .. } => {
+                compilation.add_error(&format!("Indexing composite types not yet implemented"), None);
+                None
+            }
+            _ => {
+                compilation.add_error(&format!("Can't index access a value of this type."), None);
+                None
             }
         }
     }

@@ -342,7 +342,8 @@ impl<'a> Parser<'a> {
 
             }
             TokenBlockType::Token(TokenType::Identifier(_)) => {
-                let variable = statement.into_identifier_or_error(self.compilation)?;
+                let base = statement.into_identifier_or_error(self.compilation)?;
+                let variable = self.parse_access(token_stream, base)?;
                 token_stream.error_if_empty(self.compilation, "=")?;
                 token_stream.next().assert_is_delimiter_or_error(self.compilation, Delimiter::Equals);
                 let value = self.parse_expression(token_stream)?;
