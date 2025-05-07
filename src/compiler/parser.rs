@@ -271,6 +271,20 @@ impl<'a> Parser<'a> {
         let statement = token_stream.next();
         match statement.token_type() {
 
+            TokenBlockType::Token(TokenType::Keyword(Keyword::For)) => {
+                token_stream.error_if_empty(self.compilation, "open paren")?;
+                let iterator_block = token_stream.next().into_block_type_or_error(self.compilation, Brace::Round)?;
+                let loop_code_block = token_stream.next().into_block_type_or_error(self.compilation, Brace::Curly)?;
+
+                let mut iterator_stream = TypeStream::from_iter(iterator_block.body.into_iter(), iterator_block.close_token.map(|s| s.code_location().to_owned()));
+                let iterator_variable = iterator_stream.next().into_identifier_or_error(self.compilation)?;
+                iterator_stream.next().assert_is_keyword_or_error(self.compilation, Keyword::In)?;
+                let iterator_amount = self.parse_expression(&mut iterator_stream)?;
+
+                let iterator_body  = self.parse_code_block(loop_code_block)?;
+                Some(CodeSyntax::For { iterator_variable, iterator_amount, iterator_body })
+            }
+
             TokenBlockType::Token(TokenType::Keyword(Keyword::If)) => {
 
                 token_stream.error_if_empty(self.compilation, "code block")?;

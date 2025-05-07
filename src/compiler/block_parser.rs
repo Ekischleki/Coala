@@ -1,5 +1,7 @@
 use crate::compiler::{code_location::CodeLocation, compilation::Compilation, token::{Brace, BraceState, Delimiter, Token, TokenType}, type_stream::TypeStream};
 
+use super::token::Keyword;
+
 #[derive(Debug)]
 pub enum TokenBlock {
     Token(Token),
@@ -91,6 +93,19 @@ impl TokenBlock {
             }
         }
         compilation.add_error("Expected integer", Some(location));
+        return None;
+    }
+
+    pub fn assert_is_keyword_or_error(&self, compilation: &mut Compilation, expected_keyword: Keyword) -> Option<()> {
+        let (location, token) = self.as_token_or_none();
+        if let Some(token) = token {
+            if let Some(found_keyword) = token.token_type().as_keyword() {
+                if found_keyword == &expected_keyword {
+                    return Some(())
+                }
+            }
+        }
+        compilation.add_error(&format!("Expected keyword: {:?}", expected_keyword), Some(location));
         return None;
     }
 

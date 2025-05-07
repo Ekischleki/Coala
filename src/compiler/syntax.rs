@@ -41,6 +41,11 @@ pub enum CodeSyntax {
         variable: ExpressionSyntax,
         value: ExpressionSyntax
     },
+    For {
+        iterator_variable: String,
+        iterator_amount: ExpressionSyntax,
+        iterator_body: Vec<CodeSyntax>
+    },
     If {
         condition: ExpressionSyntax,
         condition_true: Vec<CodeSyntax>

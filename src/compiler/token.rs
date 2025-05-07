@@ -87,7 +87,9 @@ impl AtomType {
 
 pub enum Keyword {
     If,
+    In,
     Let,
+    For,
     Else,
     Super,  
     Force,  

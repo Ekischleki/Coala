@@ -42,7 +42,7 @@ fn main() {
             optimize: true,
             output_code_logs: true,
             print_debug_logs: true,
-            project_path: Some("./simple.coala".into()),
+            project_path: Some("./wip.coala".into()),
             ..Default::default()
         }
     } else {

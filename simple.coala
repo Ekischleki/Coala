@@ -1,7 +1,19 @@
 problem {
-    sub test(bool: a) {
-        let arr = [a; 15]
-        arr[0] = false
+
+    sub test(bool: a_1, bool: a_2, bool: a_3, bool: b_1, bool: b_2, bool: b_3) {
+        let a = [a_1, a_2, a_3]
+        let b = [b_1, b_2, b_3]
+        
+        let res = [false; 3]
+        
+        for (i in 3) {
+            let a_i = a[i]
+            let b_i = b[i]
+            
+            let result = bit::full_adder(a_i, b_i, c_i)
+            
+
+        }
     }
 }
 
