@@ -118,7 +118,7 @@ impl<'a> AtomTreeTranslator<'a> {
         self.map_args(inputs, &substructure.args, &mut variables);
         self.compile_code_block(&substructure.code, &mut variables);
         if let Some(res) = &substructure.result {
-            self.compile_expression(res, &variables)
+            self.compile_expression(res, &mut variables)
         } else {
             Some(ValueCollection::Tuple(vec![]))
         }
@@ -155,9 +155,13 @@ impl<'a> AtomTreeTranslator<'a> {
 
                     let old_value = var.clone().get_as_atom_tree_if_single_or_error(compilation)?;
 
+                    
+
                     let selected = Self::select_if_conditions_met(new_value, old_value, condition);
-                    println!("Selected: {:#?}", selected);
+                    //println!("Selected: {:#?}", selected);
                     *var = ValueCollection::Single(selected);
+
+                    //println!("Vars: {:#?}", variables);
                 }
                 //A conditional code block only changes force statements to always be valid iff the condition is not met
                 CodeSyntax::If { condition, condition_true } => {
@@ -187,7 +191,7 @@ impl<'a> AtomTreeTranslator<'a> {
                     self.force(value, force_type);
                 }
                 CodeSyntax::Sub(sub) => {
-                    self.compile_sub_call(sub, &variables);
+                    self.compile_sub_call(sub, variables);
                 }
                 CodeSyntax::Output { expression } => {
                     if !self.compilation.settings().output_code_logs {
@@ -279,9 +283,9 @@ impl<'a> AtomTreeTranslator<'a> {
         }
     }
 
-    pub fn compile_sub_call(&mut self, sub_call_syntax: &SubCallSyntax, variables: &HashMap<String, ValueCollection>) -> Option<ValueCollection> {
+    pub fn compile_sub_call(&mut self, sub_call_syntax: &SubCallSyntax, variables: &mut HashMap<String, ValueCollection>) -> Option<ValueCollection> {
         let application = match  &sub_call_syntax.application {
-            Some(application) => self.compile_expression(application, &variables)?,
+            Some(application) => self.compile_expression(application, variables)?,
             None => ValueCollection::Tuple(vec![])
         };
         match &sub_call_syntax.location {
@@ -325,7 +329,7 @@ impl<'a> AtomTreeTranslator<'a> {
         }
     }
     
-    pub fn compile_expression(&mut self, value: &ExpressionSyntax, variables: &HashMap<String, ValueCollection>) -> Option<ValueCollection> {
+    pub fn compile_expression(&mut self, value: &ExpressionSyntax, variables: &mut HashMap<String, ValueCollection>) -> Option<ValueCollection> {
         let compilation = unsafe {self.extract_compilation()};
         match value {
             ExpressionSyntax::Array(expressions) => {
@@ -423,7 +427,7 @@ impl<'a> AtomTreeTranslator<'a> {
         s
     }
 
-    pub fn compile_access_expression(&mut self, value: &ExpressionSyntax, variables: &HashMap<String, ValueCollection>) -> Option<&mut ValueCollection> {
+    pub fn compile_access_expression<'b>(&mut self, value: &ExpressionSyntax, variables: &'b mut HashMap<String, ValueCollection>) -> Option<&'b mut ValueCollection> {
         let compilation = unsafe {self.extract_compilation()};
         match value {
             ExpressionSyntax::Access { base, field } => {
@@ -439,6 +443,14 @@ impl<'a> AtomTreeTranslator<'a> {
                 let index = self.compile_expression(index, variables)?.get_as_int_or_error(self.compilation)?;
                 let base = self.compile_access_expression(base, variables)?;
                 base.access_indexed_or_error(&index, compilation)
+            }
+            ExpressionSyntax::Variable(name) => {
+                if let Some(var) = variables.get_mut(name) {
+                    Some(var)
+                } else {
+                    compilation.add_error(&format!("Variable {name} not found in current scope."), None);
+                    None
+                }
             }
             _ => {
                 compilation.add_error("Internal: Expected access expression (Should've been caught during parsing)", None);
