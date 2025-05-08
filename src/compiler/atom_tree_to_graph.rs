@@ -114,10 +114,10 @@ impl AtomTreeCompiler {
                 if let Some(var) = self.variable_mappings.get(id) {
                     return *var;
                 }
+                    
+                self.compile_var(*id)
                 
-            self.compile_var(*id)
-            
-        }
+            }
             AtomTree::Not(a) => {
                 let input = self.compile_tree(a);
                 Node::force_bool(input, self);

@@ -406,6 +406,21 @@ impl<'a> Parser<'a> {
                 return Some(ExpressionSyntax::Sub(syntax.into()))
 
             }
+            TokenBlockType::Token(TokenType::Keyword(Keyword::Super)) if token_stream.peek().is_some_and(|s| s.token_type().is_double_colon()) => {
+                
+                token_stream.next();
+                token_stream.error_if_empty(self.compilation, "identifier")?;
+
+                let sub = token_stream.next().into_identifier_or_error(self.compilation)?;
+
+                let application = self.parse_expression(token_stream)?;
+                let syntax = SubCallSyntax {
+                    application: Some(application),
+                    location: SubLocation::Super(sub)
+                };
+                return Some(ExpressionSyntax::Sub(syntax.into()))
+
+            }
             TokenBlockType::Token(TokenType::Identifier(type_name)) if token_stream.peek().is_some_and(|s| s.token_type().is_curly_block()) => {
                 token_stream.error_if_empty(self.compilation, "code block")?;
 

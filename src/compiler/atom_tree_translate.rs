@@ -302,6 +302,131 @@ impl<'a> AtomTreeTranslator<'a> {
             None => ValueCollection::Tuple(vec![])
         };
         match &sub_call_syntax.location {
+            SubLocation::Super(name) => {
+                //println!("Application: {:#?}", application);
+
+                let mut application = match application {
+                    ValueCollection::Tuple(t) => {
+                        t
+                    }
+                    _ => vec![application]
+                };
+                //println!("Application: {:#?}", application);
+                match name.as_str() {
+                    "add" => {
+                        if application.len() == 2 {
+                            let a = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            let b = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            Some(ValueCollection::Super(SuperValue::Int(a.wrapping_add(b))))
+                        } else {
+                            self.compilation.add_error("Incorrect parameters for add function. Expected 2 integer parameters.", None);
+                            None
+                        }
+                    }
+                    "sub" => {
+                        if application.len() == 2 {
+                            let a = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            let b = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            Some(ValueCollection::Super(SuperValue::Int(a.wrapping_sub(b))))
+                        } else {
+                            self.compilation.add_error("Incorrect parameters for sub function. Expected 2 integer parameters.", None);
+                            None
+                        }
+                    }
+                    "mul" => {
+                        if application.len() == 2 {
+                            let a = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            let b = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            Some(ValueCollection::Super(SuperValue::Int(a.wrapping_mul(b))))
+                        } else {
+                            self.compilation.add_error("Incorrect parameters for mul function. Expected 2 integer parameters.", None);
+                            None
+                        }
+                    }
+                    "div" => {
+                        if application.len() == 2 {
+                            let b = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            let a = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            if b == 0 {
+                                self.compilation.add_error("Division by zero", None);
+                                return None;
+                            }
+                            Some(ValueCollection::Super(SuperValue::Int(a / b)))
+                        } else {
+                            self.compilation.add_error("Incorrect parameters for div function. Expected 2 integer parameters.", None);
+                            None
+                        }
+                    }
+                    "mod" => {
+                        if application.len() == 2 {
+                            let b = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            let a = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            if b == 0 {
+                                self.compilation.add_error("Division by zero", None);
+                                return None;
+                            }
+                            Some(ValueCollection::Super(SuperValue::Int(a % b)))
+                        } else {
+                            self.compilation.add_error("Incorrect parameters for mod function. Expected 2 integer parameters.", None);
+                            None
+                        }
+                    }
+                    "eq" => {
+                        if application.len() == 2 {
+                            let a = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            let b = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            Some(ValueCollection::Single(AtomTree::AtomType {atom: if a == b { AtomType::True} else {AtomType::False}} ))
+                        } else {
+                            self.compilation.add_error("Incorrect parameters for eq function. Expected 2 integer parameters.", None);
+                            None
+                        }
+                    }
+                    "ne" => {
+                        if application.len() == 2 {
+                            let a = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            let b = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            Some(ValueCollection::Single(AtomTree::AtomType {atom: if a != b { AtomType::True} else {AtomType::False}} ))
+                        } else {
+                            self.compilation.add_error("Incorrect parameters for ne function. Expected 2 integer parameters.", None);
+                            None
+                        }
+                    }
+                    "grt" => {
+                        if application.len() == 2 {
+                            let b = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            let a = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            Some(ValueCollection::Single(AtomTree::AtomType {atom: if a > b { AtomType::True} else {AtomType::False}} ))
+                        } else {
+                            self.compilation.add_error("Incorrect parameters for grt function. Expected 2 integer parameters.", None);
+                            None
+                        }
+                    }
+                    "grte" => {
+                        if application.len() == 2 {
+                            let b = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            let a = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            Some(ValueCollection::Single(AtomTree::AtomType {atom: if a >= b { AtomType::True} else {AtomType::False}} ))
+                        } else {
+                            self.compilation.add_error("Incorrect parameters for grte function. Expected 2 integer parameters.", None);
+                            None
+                        }
+                    }
+                    "len" => {
+                        if application.len() == 1 {
+                            let a = application.pop()?.get_as_array_or_error(self.compilation)?;
+                            
+                            Some(ValueCollection::Super(SuperValue::Int(a.len())))
+                        } else {
+                            self.compilation.add_error("Incorrect parameters for len function. Expected 1 integer parameter.", None);
+                            None
+                        }
+                    }
+                    _ => {
+                        self.compilation.add_error(&format!("Unknown super function: {name}"), None);
+                        None
+                    }
+                }
+            }
             SubLocation::Atom(a) => {
                 match a {
                     AtomSub::Not => {
@@ -507,6 +632,15 @@ impl ValueCollection {
             }
         }
     }
+    pub fn get_as_array_or_error(self, compilation: &mut Compilation) -> Option<Vec<ValueCollection>> {
+        match self {
+            Self::Array { items } => Some(items),
+            _ => {
+                compilation.add_error("Expected array value", None);
+                None
+            }
+        }
+    }
     pub fn get_as_atom_tree_if_single_or_error(self, compilation: &mut Compilation) -> Option<AtomTree> {
         match self {
             Self::SingleVar(id) => Some(AtomTree::Variable { id }),
@@ -554,7 +688,7 @@ impl ValueCollection {
             
             _ => 
                 {
-                    compilation.add_error(&format!("Tried to access fields on a value of this type."), None);
+                    compilation.add_error(&format!("Tried to access field \"{accessor_name}\" on a value that doesn't have fields."), None);
                     None
                 }
 

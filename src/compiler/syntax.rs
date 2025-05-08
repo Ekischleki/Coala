@@ -129,6 +129,7 @@ pub enum SubLocation {
         collection: String,
         sub: String,
     },
+    Super(String),
     Atom(AtomSub)
 }
 
