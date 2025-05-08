@@ -145,6 +145,13 @@ impl<'a> AtomTreeTranslator<'a> {
         let compilation = unsafe {self.extract_compilation()};
         for statement in block {
             match statement {
+                CodeSyntax::For { iterator_variable, iterator_amount, iterator_body } => {
+                    let iterator_amount = self.compile_expression(iterator_amount, variables)?.get_as_int_or_error(self.compilation)?;
+                    for i in 0..iterator_amount {
+                        variables.insert(iterator_variable.to_owned(), ValueCollection::Super(SuperValue::Int(i)));
+                        self.compile_code_block(iterator_body, variables);
+                    }
+                }
                 CodeSyntax::ReassignSyntax { variable, value } => {
                     let condition = self.true_if_all_conditions_are_met();
 

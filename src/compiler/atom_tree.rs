@@ -77,7 +77,6 @@ impl AtomRoot {
         self.apply_to_all_trees(|t| {
             t.simp_rec(&mut changed)
         });
-        println!("{:#?}", self);
         self.simp_force(compilation, &mut changed);
 
         return changed;
@@ -108,7 +107,7 @@ impl AtomRoot {
                 _ => {}
             }
         }
-        println!("{:#?}", inline_definitions);
+        //println!("{:#?}", inline_definitions);
         if inline_definitions.len() == 0 {
             return false;
         }

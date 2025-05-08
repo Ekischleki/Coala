@@ -39,7 +39,7 @@ fn main() {
     let settings = if args().count() == 1 {
         Settings {
             ignore_errors: false,
-            optimize: true,
+            optimize: false,
             output_code_logs: true,
             print_debug_logs: true,
             project_path: Some("./wip.coala".into()),
