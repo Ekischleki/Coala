@@ -155,18 +155,24 @@ impl<'a> AtomTreeTranslator<'a> {
                 CodeSyntax::ReassignSyntax { variable, value } => {
                     let condition = self.true_if_all_conditions_are_met();
 
-                    let new_value = self.compile_expression(value, variables)?.get_as_atom_tree_if_single_or_error(self.compilation)?;
-
+                    let new_value = self.compile_expression(value, variables)?;
 
                     let var = self.compile_access_expression(variable, variables)?;
-
-                    let old_value = var.clone().get_as_atom_tree_if_single_or_error(compilation)?;
-
                     
-
-                    let selected = Self::select_if_conditions_met(new_value, old_value, condition);
-                    //println!("Selected: {:#?}", selected);
-                    *var = ValueCollection::Single(selected);
+                    //Hack to allow writing non-atom-type values to variables
+                    if let Some(AtomType::True) = condition.as_atom_type() {
+                        *var = new_value;
+                    } else {
+                        
+                        let old_value = var.clone().get_as_atom_tree_if_single_or_error(compilation)?;
+    
+                        let new_value = new_value.get_as_atom_tree_if_single_or_error(self.compilation)?;
+    
+                        let selected = Self::select_if_conditions_met(new_value, old_value, condition);
+                        //println!("Selected: {:#?}", selected);
+                        *var = ValueCollection::Single(selected);
+                    }
+                    
 
                     //println!("Vars: {:#?}", variables);
                 }
