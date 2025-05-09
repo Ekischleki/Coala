@@ -195,7 +195,7 @@ impl<'a> AtomTreeTranslator<'a> {
                     self.condition_stack.pop();
                 }
                 CodeSyntax::Let { variable, value } => {
-                    let value = self.compile_expression(&value, variables)?;    
+                    let value = self.compile_expression(&value, variables).unwrap_or_default();    
                     variables.insert(variable.to_owned(), value.write_as_var(self));
                 }
                 CodeSyntax::Force { value, type_syntax } => {
@@ -323,13 +323,13 @@ impl<'a> AtomTreeTranslator<'a> {
                             None
                         }
                     }
-                    "sub" => {
+                    "sb" => {
                         if application.len() == 2 {
-                            let a = application.pop()?.get_as_int_or_error(self.compilation)?;
                             let b = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            let a = application.pop()?.get_as_int_or_error(self.compilation)?;
                             Some(ValueCollection::Super(SuperValue::Int(a.wrapping_sub(b))))
                         } else {
-                            self.compilation.add_error("Incorrect parameters for sub function. Expected 2 integer parameters.", None);
+                            self.compilation.add_error("Incorrect parameters for sb function. Expected 2 integer parameters.", None);
                             None
                         }
                     }
@@ -418,6 +418,26 @@ impl<'a> AtomTreeTranslator<'a> {
                             Some(ValueCollection::Super(SuperValue::Int(a.len())))
                         } else {
                             self.compilation.add_error("Incorrect parameters for len function. Expected 1 integer parameter.", None);
+                            None
+                        }
+                    }
+                    "min" => {
+                        if application.len() == 2 {
+                            let b = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            let a = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            Some(ValueCollection::Super(SuperValue::Int(a.min(b))))
+                        } else {
+                            self.compilation.add_error("Incorrect parameters for min function. Expected 2 integer parameters.", None);
+                            None
+                        }
+                    }
+                    "max" => {
+                        if application.len() == 2 {
+                            let b = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            let a = application.pop()?.get_as_int_or_error(self.compilation)?;
+                            Some(ValueCollection::Super(SuperValue::Int(a.max(b))))
+                        } else {
+                            self.compilation.add_error("Incorrect parameters for max function. Expected 2 integer parameters.", None);
                             None
                         }
                     }
