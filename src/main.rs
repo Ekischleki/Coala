@@ -39,10 +39,10 @@ fn main() {
     let settings = if args().count() == 1 {
         Settings {
             ignore_errors: false,
-            optimize: false,
-            output_code_logs: true,
+            optimize: true,
+            output_code_logs: false,
             print_debug_logs: true,
-            project_path: Some("./wip.coala".into()),
+            project_path: Some("./simple.coala".into()),
             ..Default::default()
         }
     } else {

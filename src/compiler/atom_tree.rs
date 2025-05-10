@@ -18,6 +18,15 @@ pub enum ValueAction {
 }
 
 impl AtomRoot {
+    pub fn inline_all(&mut self) {
+        let mut new_definitions = HashMap::new();
+        let old_definitions = self.definitions.clone();
+        self.apply_to_all_trees_mut(|atom_tree| {
+            atom_tree.inline_all(&mut new_definitions, &old_definitions);
+        });
+        self.definitions = self.definitions.drain().filter(|(_, definition)| definition.definition.is_seed_label()).collect();
+        
+    }
     //Run after definitions have been simplified 
     pub fn simp_force(&mut self, compilation: &mut Compilation, changed: &mut bool) {
         let mut remove_indecies = vec![];
@@ -30,6 +39,7 @@ impl AtomRoot {
                     AtomTree::Variable { id } => {
                         inline_definitions.insert(*id, Box::new(AtomTree::AtomType { atom: *t }));
                         *value = AtomTree::DoNotRemoveMarker(Box::new(AtomTree::Variable { id: *id }));
+                        //*changed = true; We cant set changed to true here, because it would result in an infinite loop
                     }
                     //force not a => atom type <=> force a => not atom type
                     AtomTree::Not(a) => {
@@ -39,16 +49,18 @@ impl AtomRoot {
                         *value = *(a).clone();
                     }
 
-                    AtomTree::Or(a, b) if t.is_false() => {
+                    AtomTree::Or(s) if t.is_false() => {
                         *changed = true;
                         remove_indecies.push(i);
-                        add_items.push((*a.to_owned(), ValueAction::Restriction(AtomType::False)));
-                        add_items.push((*b.to_owned(), ValueAction::Restriction(AtomType::False)));
+                        for a in s {
+                            add_items.push((a.to_owned(), ValueAction::Restriction(AtomType::False)));
+
+                        }
                     }
                     //something like force true => true
                     AtomTree::AtomType { atom } => {
                         if atom == t {
-                            compilation.add_info("Force statement is trivially always successful.", None);
+                            //compilation.add_info("Force statement is trivially always successful.", None);
                             remove_indecies.push(i);
                         } else {
                             compilation.add_warning("Force statement makes graph trivially unsolvable.", None);
@@ -74,10 +86,11 @@ impl AtomRoot {
 
     pub fn simp_all(&mut self, compilation: &mut Compilation) -> bool {
         let mut changed = false;
+        self.simp_force(compilation, &mut changed);
+        println!("Simp force: {:#?}", self);
         self.apply_to_all_trees(|t| {
             t.simp_rec(&mut changed)
         });
-        self.simp_force(compilation, &mut changed);
 
         return changed;
     }
@@ -147,9 +160,9 @@ impl AtomRoot {
         });
         changed
     }
-    fn apply_to_all_trees_mut<F>(&mut self, predicate: F)
+    fn apply_to_all_trees_mut<F>(&mut self, mut predicate: F)
     where
-        F: Fn(&mut AtomTree)
+        F: FnMut(&mut AtomTree)
     {
         for (_, definition) in self.definitions.iter_mut() {
             predicate(&mut definition.definition);
@@ -158,6 +171,7 @@ impl AtomRoot {
             predicate(restriction)
         }
     }
+    
     fn apply_to_all_trees<F>(&mut self, mut predicate: F)
     where
         F: FnMut(AtomTree) -> AtomTree
@@ -207,19 +221,46 @@ pub enum AtomTree {
        Box<AtomTree> 
     ),
     Or (
-        Box<AtomTree>,
-        Box<AtomTree>
+        Vec<AtomTree>
     )
     
 }
 
+impl Default for AtomTree {
+    fn default() -> Self {
+        Self::AtomType { atom: AtomType::False }
+    }
+}
 
 impl AtomTree {
+    fn inline_all(&mut self, new_definitions: &mut HashMap<usize, Box<AtomTree>>, definitions: &HashMap<usize, VarDefinition>) {
+        match self {
+            Self::Variable { id } => {
+                if let Some(v) = new_definitions.get(id) {
+                    *self = *v.clone();
+                } else {
+                    let mut definition = definitions.get(id).expect("Expected definition to be some. (Probably a self referential variable, which shouldn't occur.)").clone();
+                    
+                    //We do not inline seed labels, since we don't wanna loose where they are coming from
+                    if definition.definition.is_seed_label() {
+                        return;
+                    }
+                    definition.definition.inline_all(new_definitions, definitions);
+                    new_definitions.insert(*id, definition.definition);
+                    *self = *new_definitions.get(id).unwrap().clone();
+                }
+            },
+            Self::Not(a) => {a.inline_all(new_definitions, definitions);},
+            Self::Or(v) => {v.iter_mut().for_each(|f| f.inline_all(new_definitions, definitions))},
+            _ => {}
+        }
+    }
+
     fn count_var_use(&self, counter: &mut HashMap<usize, usize>) {
         match self {
             Self::Variable { id } => {*counter.entry(*id).or_insert(0) += 1;},
             Self::Not(a) => {a.count_var_use(counter);},
-            Self::Or(a, b) => {a.count_var_use(counter); b.count_var_use(counter);},
+            Self::Or(v) => {v.iter().for_each(|f| f.count_var_use(counter))},
             _ => {}
         }
     }
@@ -231,7 +272,7 @@ impl AtomTree {
             }
 
             Self::Not(a) => {a.remove_marker();},
-            Self::Or(a, b) => {a.remove_marker(); b.remove_marker();},
+            Self::Or(v) => {v.iter_mut().for_each(|f| f.remove_marker());},
             _ => {}
         }
     }
@@ -243,7 +284,7 @@ impl AtomTree {
                 }
             },
             Self::Not(a) => {a.inline_var(inline_definitions);},
-            Self::Or(a, b) => {a.inline_var(inline_definitions); b.inline_var(inline_definitions);},
+            Self::Or(v) => {v.iter_mut().for_each(|f| f.inline_var(inline_definitions))},
             _ => {}
         }
         
@@ -251,18 +292,24 @@ impl AtomTree {
     pub fn simp_rec(self, changed: &mut bool) -> Self {
         let mut simp_children = match self {
             Self::Not(a) => Self::Not(a.simp_rec(changed).into()),
-            Self::Or(a, b) => Self::Or(a.simp_rec(changed).into(), b.simp_rec(changed).into()),
+            Self::Or(v) => Self::Or(v.into_iter().map(|a| a.simp_rec(changed)).collect()),
             _ => self
         };
         loop {
             let simplified;
+
+            println!("Simp before: {:#?}", simp_children);
             (simplified, simp_children) = simp_children.simp();
+            println!("Simp loop: {:#?}", simp_children);
             if !simplified {
                 break;
             }
             *changed = true;
         } 
         return simp_children;
+    }
+    pub fn simp_multi_or(children: &mut Vec<AtomTree>) -> bool {
+        todo!()
     }
     pub fn simp(self) -> (bool, Self) {
         //println!("Simp: {:#?}", self);
@@ -274,27 +321,44 @@ impl AtomTree {
             Self::Not(a) if a.is_atom_type() => {
                 Self::AtomType { atom: a.into_atom_type().unwrap().not() }
             },
-            Self::Or(a, b) if a.is_atom_type() => {
-                match a.into_atom_type().unwrap() {
-                    AtomType::True => Self::AtomType { atom: AtomType::True },
-                    AtomType::False => *b,
+            Self::Or(v) => {
+                let mut new_v = HashSet::with_capacity(v.len() / 2);
+
+                let mut changed = false;
+                for f in v {
+                    match f {
+                        Self::AtomType { atom } => {
+                            //If atom type is false, we don't need to add it to the set, since it will not change the result of the or operation 
+                            if atom.is_true() {
+                                return (true, Self::AtomType { atom: AtomType::True });
+                            }
+                        }
+                        Self::Or(a) => {
+                            //If we have an or inside of an or, we can just add the elements to the set
+                            for a in a {
+                                new_v.insert(a);
+                            }
+                            changed = true;
+                        }
+                        _ => {
+                            new_v.insert(f);
+                        }
+                    }
                 }
-            }
-            Self::Or(a, b) if b.is_atom_type() => {
-                match b.into_atom_type().unwrap() {
-                    AtomType::True => Self::AtomType { atom: AtomType::True },
-                    AtomType::False => *a,
+
+                
+
+                let elems: Vec<AtomTree> = new_v.into_iter().collect();
+                if elems.len() == 0 {
+                    return (true, Self::AtomType { atom: AtomType::False });
                 }
+                if elems.len() == 1 {
+                    return (true, elems.into_iter().next().unwrap());
+                }
+                return (changed, Self::Or(elems));
+                
             }
-            Self::Or(a, b) if a == b => {
-                *a
-            },
-            Self::Or(a, b) if *a == Self::Not(b.clone()) => {
-                Self::AtomType { atom: AtomType::True }
-            },
-            Self::Or(a, b) if Self::Not(a.clone()) == *b => {
-                Self::AtomType { atom: AtomType::True }
-            },
+
             _ => return (false, self)
         })
     }

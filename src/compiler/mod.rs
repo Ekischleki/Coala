@@ -128,17 +128,13 @@ pub fn compile(settings: &Settings) {
         println!("{:#?}", atom_tree);
     }
     if settings.optimize {
-        while atom_tree.remove_links() {
-            if settings.print_debug_logs {
-                println!("{:#?}", atom_tree);
-            }
-        }
 
-        while atom_tree.inline_vars() {
+
+        atom_tree.inline_all();
             if settings.print_debug_logs {
                 println!("{:#?}", atom_tree);
             }
-        } 
+        
 
         while atom_tree.simp_all(&mut compilation) {
             if settings.print_debug_logs {
