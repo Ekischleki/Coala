@@ -2,6 +2,7 @@
 pub struct Settings {
     pub color: bool,
     pub optimize: bool,
+    pub heavy_optimization: bool,
     pub output_code_logs: bool,
     pub print_debug_logs: bool,
     pub output_diagnostics: bool,
@@ -12,6 +13,6 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { color: true, optimize: false, output_code_logs: true, print_debug_logs: false, output_diagnostics: true, project_path: None, output_directory: None, ignore_errors: false,  }
+        Self { color: true, optimize: false, output_code_logs: true, print_debug_logs: false, output_diagnostics: true, project_path: None, output_directory: None, ignore_errors: false, heavy_optimization: false }
     }
 }

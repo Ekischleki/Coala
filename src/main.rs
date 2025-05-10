@@ -41,8 +41,9 @@ fn main() {
             ignore_errors: false,
             optimize: true,
             output_code_logs: false,
-            print_debug_logs: true,
-            project_path: Some("./simple.coala".into()),
+            print_debug_logs: false,
+            heavy_optimization: false,
+            project_path: Some("./wip.coala".into()),
             ..Default::default()
         }
     } else {

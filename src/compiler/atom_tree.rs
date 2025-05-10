@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, hash::{BuildHasher, Hash, Hasher}};
 
 use enum_as_inner::EnumAsInner;
 
@@ -37,7 +37,7 @@ impl AtomRoot {
             if let ValueAction::Restriction(t) = action {
                 match value {
                     AtomTree::Variable { id } => {
-                        inline_definitions.insert(*id, Box::new(AtomTree::AtomType { atom: *t }));
+                        inline_definitions.insert(AtomTree::Variable { id: *id }, Box::new(AtomTree::AtomType { atom: *t }));
                         *value = AtomTree::DoNotRemoveMarker(Box::new(AtomTree::Variable { id: *id }));
                         //*changed = true; We cant set changed to true here, because it would result in an infinite loop
                     }
@@ -87,18 +87,33 @@ impl AtomRoot {
     pub fn simp_all(&mut self, compilation: &mut Compilation) -> bool {
         let mut changed = false;
         self.simp_force(compilation, &mut changed);
-        println!("Simp force: {:#?}", self);
+        //println!("Simp force: {:#?}", self);
         self.apply_to_all_trees(|t| {
             t.simp_rec(&mut changed)
         });
 
         return changed;
     }
-
+    pub fn outline_common_expressions(&mut self) {
+        let mut outlined = HashMap::new();
+        let mut var_id = self.variable_id;
+        self.apply_to_all_trees_mut(|t| {
+            if t.is_seed_label() {
+                return;
+            }
+            t.outline_common_expressions(&mut outlined, &mut var_id);
+        });
+        for (def, id) in outlined {
+            self.definitions.insert(id, VarDefinition { id, definition: def.into() });
+        }
+    }
     pub fn finalize_simp(&mut self) {
         self.apply_to_all_trees_mut(|t| {
-            t.remove_marker()
+            t.remove_marker();
+
         });
+
+
     }
 
     pub fn remove_links(&mut self) -> bool {
@@ -108,13 +123,13 @@ impl AtomRoot {
             if exclude_for_now.contains(id) {continue;}
             match &*definition.definition {
                 AtomTree::Variable { id: v } => {
-                    if inline_definitions.contains_key(v) {continue;}
+                    if inline_definitions.contains_key(&AtomTree::Variable { id: *v }) {continue;}
 
-                    inline_definitions.insert(*id, definition.definition.to_owned());
+                    inline_definitions.insert(AtomTree::Variable { id: *id }, definition.definition.to_owned());
                     exclude_for_now.insert(*v);
                 }
                 AtomTree::AtomType { atom } => {
-                    inline_definitions.insert(*id, definition.definition.to_owned());
+                    inline_definitions.insert(AtomTree::Variable { id: *id }, definition.definition.to_owned());
                     
                 }
                 _ => {}
@@ -129,7 +144,7 @@ impl AtomRoot {
             atom_tree.inline_var(&inline_definitions);
         });
         for (removed_id, _) in inline_definitions {
-            self.definitions.remove(&removed_id);
+            self.definitions.remove(&removed_id.into_variable().unwrap());
         }
 
         true
@@ -140,7 +155,7 @@ impl AtomRoot {
         self.apply_to_all_trees(|tree| {tree.count_var_use(&mut var_uses); tree});
 
        
-        let mut inline_definitions: HashMap<usize, Box<AtomTree>> = HashMap::new();
+        let mut inline_definitions = HashMap::new();
         let mut changed = false;
         for (variable, uses) in var_uses.iter() {
             match uses {
@@ -149,14 +164,14 @@ impl AtomRoot {
                 }
                 1 => {
                     let definition = self.definitions.remove(variable).expect("Expected definition to be some.").definition;
-                    inline_definitions.insert(*variable, definition);
+                    inline_definitions.insert(AtomTree::Variable { id: *variable }, definition);
                     changed = true;
                 }
                 _ => {}
             }
         }
         self.apply_to_all_trees_mut(|atom_tree| {
-            atom_tree.inline_var(&inline_definitions);
+            atom_tree.inline_var(& inline_definitions);
         });
         changed
     }
@@ -206,7 +221,7 @@ pub struct VarDefinition {
 
 
 
-#[derive(EnumAsInner, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(EnumAsInner, Debug, Clone)]
 pub enum AtomTree {
     SeedLabel(Label),
     //Can be safely removed after simplifying is done.
@@ -225,6 +240,50 @@ pub enum AtomTree {
     )
     
 }
+impl Hash for AtomTree {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Variable { id } => id.hash(state),
+            Self::AtomType { atom } => atom.hash(state),
+            Self::Not(a) => a.hash(state),
+            Self::Or(v) => {
+                //Hash the vector in a way that is not order dependent
+                let mut hash = 0;
+                for a in v {
+                    hash ^= {
+                        let mut s = std::hash::BuildHasherDefault::<std::collections::hash_map::DefaultHasher>::default().build_hasher();
+                        a.hash(&mut s);
+                        s.finish() as i32
+                    };
+                }
+                hash.hash(state);
+            },
+            _ => {}
+        }
+    }
+}
+impl Eq for AtomTree {
+}
+impl PartialEq for AtomTree {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Variable { id: a }, Self::Variable { id: b }) => a == b,
+            (Self::AtomType { atom: a }, Self::AtomType { atom: b }) => a == b,
+            (Self::Not(a), Self::Not(b)) => a == b,
+            (Self::Or(a), Self::Or(b)) => {
+                //Check of the two vectors are equal, regardless of order
+                if a.len() != b.len() {
+                    return false;
+                }
+                let a_set: HashSet<_> = a.iter().collect();
+                let b_set: HashSet<_> = b.iter().collect();
+                a_set == b_set
+            },
+            
+            _ => false
+        }
+    }
+}
 
 impl Default for AtomTree {
     fn default() -> Self {
@@ -233,6 +292,30 @@ impl Default for AtomTree {
 }
 
 impl AtomTree {
+    fn outline_common_expressions(&mut self, outlined: &mut HashMap<AtomTree, usize>, var_count: &mut usize) {
+        match self {
+            Self::Variable { .. } => {
+                return;
+            }
+            Self::Not(a) => {a.outline_common_expressions(outlined, var_count);},
+            Self::Or(v) => {v.iter_mut().for_each(|f| f.outline_common_expressions(outlined, var_count))},
+            _ => {}
+        }
+        if let Some(id) = outlined.get(self) {
+            //println!("Found common expression: {:#?} => {}", self, id);
+            *self = AtomTree::Variable { id: *id };
+        } else {
+            
+            *var_count += 1;
+            let mut new_var = AtomTree::Variable { id: *var_count };
+            std::mem::swap(self, &mut new_var);
+            
+            //println!("Adding new expression: {:#?} => {}", new_var, var_count);
+            outlined.insert(new_var, *var_count);
+            //println!("Old: {:#?}", old);
+
+        }
+    }
     fn inline_all(&mut self, new_definitions: &mut HashMap<usize, Box<AtomTree>>, definitions: &HashMap<usize, VarDefinition>) {
         match self {
             Self::Variable { id } => {
@@ -276,16 +359,15 @@ impl AtomTree {
             _ => {}
         }
     }
-    fn inline_var(&mut self, inline_definitions: &HashMap<usize, Box<AtomTree>>) {
+    fn inline_var(&mut self, inline_definitions: &HashMap<AtomTree, Box<AtomTree>>) {
         match self {
-            Self::Variable { id:  self_id } => {        
-                if let Some(v) = inline_definitions.get(self_id) {
-                    *self = *v.clone();
-                }
-            },
             Self::Not(a) => {a.inline_var(inline_definitions);},
             Self::Or(v) => {v.iter_mut().for_each(|f| f.inline_var(inline_definitions))},
             _ => {}
+        }
+        if let Some(v) = inline_definitions.get(self) {
+            *self = *v.clone();
+            return;
         }
         
     }
@@ -298,9 +380,9 @@ impl AtomTree {
         loop {
             let simplified;
 
-            println!("Simp before: {:#?}", simp_children);
+            //println!("Simp before: {:#?}", simp_children);
             (simplified, simp_children) = simp_children.simp();
-            println!("Simp loop: {:#?}", simp_children);
+            //println!("Simp loop: {:#?}", simp_children);
             if !simplified {
                 break;
             }
