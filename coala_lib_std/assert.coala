@@ -1,0 +1,32 @@
+## Collection for binary or unary boolean assertions
+collection assert {
+
+    ## Graph becomes unsolvable if both values are not equal
+    sub eq(bool: a, bool: b) {
+        # We don't use bool::eq because this is easier to optimize
+        if (a) {
+            force b => true
+        } else {
+            force b => false
+        }
+    }
+
+    ## Graph becomes unsolvable if both values are equal
+    sub neq(bool: a, bool: b) {
+        if (a) {
+            force b => false
+        } else {
+            force b => true
+        }    
+    }
+
+    ## Graph becomes unsolvable if the value is not true
+    sub is_true(bool: a) {
+        force a => true
+    }
+
+    ## Graph becomes unsolvable if the value is not false
+    sub is_false(bool: a) {
+        force a => false
+    }
+}

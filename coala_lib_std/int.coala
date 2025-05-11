@@ -1,0 +1,133 @@
+import std::bool
+import std::bit
+
+## A composite integer type, containing a bit array and its length. 
+## The first position of the bit array is the least significant bit (LSB), and the last position is the most significant bit (MSB).
+composite Int {
+    array: data,
+    super_i: int_length
+}
+
+## A collection of integer operations.
+collection int {
+
+    ## Resizes the length of an integer. If the new length is smaller than the current length, the data is truncated by removing the most significant bits. If the new length is larger, the data is padded with zeros, such that the result is equivalent to the input.
+    sub resize(int: a, sup: size) {
+        let res = int::zero(size)
+        for (i in super::min(a.int_length, size)) {
+            res.data[i] = a.data[i]
+        }
+    } = res
+
+    ## Leftshift resize. Leftshits the integer by 1 bit. The new LSB is set to the fill_bit, and the MSB is moved to the new bit. Returns an integer one bigger than the input.
+    ## Since the LSB is the first bit, this operation doesn't actually leftshift the bits, although it is called leftshift for convenience.
+    sub lfsr(int: a, bool: fill_bit) {
+        let res = int::zero(super::add(a.int_length, 1))
+        res.data[0] = fill_bit
+        for (i in a.int_length) {
+            res.data[super::add(i, 1)] = a.data[i]
+        }
+    } = res
+
+    # Left shift. Leftshifts the integer by 1 bit. The new LSB is set to the fill_bit, and the MSB is removed.
+    sub lfs(int: a, bool: fill_bit) {
+        let res = int::zero(a.int_length)
+        res.data[0] = fill_bit
+        for (i in super::sb(a.int_length, 1)) {
+            res.data[super::add(i, 1)] = a.data[i]
+        }
+    } = res
+
+    ## Creates an integer from a boolean array. The first position of the array is the least significant bit (LSB), and the last position is the most significant bit (MSB).
+    sub from_array(array: data) {
+        let int_length = super::len(data)
+    } = Int {
+        data: data,
+        int_length: int_length
+    }
+
+    ## Adds a to b if condition is true. If condition is false, it just returns a.
+    sub add_if_true(int: a, int: b, bool: condition) {
+        if (not condition) {
+            for (i in b.int_length) {
+                b.data[i] = false
+            }
+        }
+
+    } = int::add(a, b)
+
+    ## Returns zero of the given length.
+    sub zero(sup: int_length) {
+        let data = [false; int_length]
+    } = Int {
+        data: data,
+        int_length: int_length
+    }
+
+    ## Converts the compiler constant int to an integer. The length of the integer is given by the super constant int_length.
+    sub from_super(sup: int, sup: int_length) {
+        let data = [false; int_length]
+        let i = 0
+        for (i in int_length) {
+            if (super::eq(super::mod(int, 2), 1)) {
+                data[i] = true
+            }
+            int = super::div(int, 2)
+        }
+    } = Int {
+        data: data,
+        int_length: int_length
+    }
+
+    ## Mutliply two integers. The result is the product of the two integers. The length of the result is the sum of the lengths of the two input integers.
+    sub mul(int: a, int: b) {
+        let res_size = super::add(a.int_length, b.int_length)
+        let cur = int::resize(a, res_size)
+        let res = int::zero(res_size)
+        for(i in b.int_length) {
+            let res = int::add_if_true(res, cur, b.data[i])
+
+            let cur = int::lfs(cur, false)
+        }
+    } = res
+
+    ## Adds two integers. The result is the sum of the two integers. The length of the result is the same as the length of the input integers. It is asserted, that both inputs are of the same length.
+    sub add(Int: a, Int: b) {
+        if (not super::eq(a.int_length, b.int_length)) {
+            output "Error: Ints must be of the same length to add"
+            force false => true
+        }
+
+        let carry = false
+        let data = [false; a.int_length]
+        for (i in a.int_length) {
+            let a_i = a.data[i]
+            let b_i = b.data[i]
+            let res = bit::full_adder(a_i, b_i, carry)
+            data[i] = res.data
+            carry = res.carry
+        }
+    } = Int {
+        data: data,
+        int_length: a.int_length
+    }
+
+    ## Returns true if two integers are equal. The length of the result is the same as the length of the input integers. It is asserted, that both inputs are of the same length.
+    sub eq(Int: a, Int: b) {
+        if (not super::eq(a.int_length, b.int_length)) {
+            output "Error: Ints must be of the same length to add"
+            force false => true
+        }
+
+        let eq = true
+        for (i in a.int_length) {
+            let a_i = a.data[i]
+            let b_i = b.data[i]
+            if (not bool::eq(a_i, b_i)) {
+                eq = false
+            }
+        }
+    } = eq
+    
+
+}

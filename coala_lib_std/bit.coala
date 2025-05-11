@@ -1,0 +1,27 @@
+## Collection for single bit arithmetic
+collection bit {
+
+    ## Full adder. Takes 3 bits and returns a 2 bit result. The first bit is the sum, the second bit is the carry.
+    sub full_adder(bool: a, bool: b, bool: c) {
+        let a_xor_b = bool::xor(a, b)
+        let data = bool::xor(c, a_xor_b)
+        let carry = or(bool::and(a, b), bool::and(c, a_xor_b))
+    } = ArithmeticResult {
+        carry: carry,
+        data: data
+    }
+    
+    ## Half adder. Takes 2 bits and returns a 2 bit result. The first bit is the sum, the second bit is the carry.
+    sub half_adder(bool: a, bool: b) {
+        let carry = bool::and(a, b)
+        let data = bool::xor(a, b)
+    } = ArithmeticResult {
+            data: data, 
+            carry: carry
+        }
+}
+
+composite ArithmeticResult {
+    bool: data,
+    bool: carry
+}

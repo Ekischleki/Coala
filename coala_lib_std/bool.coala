@@ -1,0 +1,27 @@
+## A collection of commutative boolean operations
+collection bool {
+
+    ## And operation. Returns true if both inputs are true, otherwise false.
+    sub and(bool: a, bool: b) {} = not bool::nand(a, b)
+
+    ## Nand operation. Returns true if at least one input is false, otherwise false.
+    sub nand(bool: a, bool: b) {} = or(not a, not b)
+
+    ## Nor operation. Returns true if both inputs are false, otherwise false.
+    sub nor(bool: a, bool: b) {} = not or(a, b)
+
+    ## Xor operation. Returns true if exactly one input is true, otherwise false.
+    sub xor(bool: a, bool: b) {
+        let not_both_true = bool::nand(a, b)
+        let either_true = or(a, b)
+    } = bool::and(not_both_true, either_true)
+
+    ## Xnor operation. Returns true if both inputs are the same, otherwise false.
+    sub xnor(bool: a, bool: b) {
+        let both_true = bool::and(a, b)
+        let both_false = bool::nor(a, b)
+    } = or(both_true, both_false)
+
+    ## Eq operation. Wrapper of Xnor operation. Returns true if both inputs are the same, otherwise false.
+    sub eq(bool: a, bool: b) {} = bool::xnor(a, b)
+}
