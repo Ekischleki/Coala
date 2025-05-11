@@ -134,12 +134,6 @@ pub fn compile(settings: &Settings) {
             }
         }
 
-        while atom_tree.inline_vars() {
-            if settings.print_debug_logs {
-                println!("{:#?}", atom_tree);
-            }
-        } 
-
         while atom_tree.simp_all(&mut compilation) {
             if settings.print_debug_logs {
                 println!("{:#?}", atom_tree);
@@ -148,12 +142,7 @@ pub fn compile(settings: &Settings) {
                 if settings.print_debug_logs {
                     println!("{:#?}", atom_tree);
                 }
-            }
-            while atom_tree.inline_vars() {
-                if settings.print_debug_logs {
-                    println!("{:#?}", atom_tree);
-                }
-            }        
+            }     
 
         }
     }

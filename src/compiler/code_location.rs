@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CodeLocation {
     pub path: PathBuf,
     pub section: Option<Section>
@@ -47,5 +48,23 @@ impl CodeLocation {
                 location_end
             })
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct LocationValue<T> {
+    pub location: Option<CodeLocation>,
+    pub value: T
+} 
+
+impl<T> LocationValue<T> {
+    pub fn new(location: Option<CodeLocation>, value: T) -> Self {
+        Self { location, value }
+    }
+}
+
+impl<T> From<T> for LocationValue<T> {
+    fn from(value: T) -> Self {
+        Self { location: None, value }
     }
 }

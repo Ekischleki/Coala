@@ -100,7 +100,7 @@ impl AtomRoot {
                     inline_definitions.insert(*id, definition.definition.to_owned());
                     exclude_for_now.insert(*v);
                 }
-                AtomTree::AtomType { atom } => {
+                AtomTree::AtomType { .. } => {
                     inline_definitions.insert(*id, definition.definition.to_owned());
                     
                 }
@@ -121,32 +121,7 @@ impl AtomRoot {
 
         true
     }
-    pub fn inline_vars(&mut self) -> bool {
-        return false; //todo: fix this garbage
-        let mut var_uses = HashMap::new();
-        self.apply_to_all_trees(|tree| {tree.count_var_use(&mut var_uses); tree});
-
-       
-        let mut inline_definitions: HashMap<usize, Box<AtomTree>> = HashMap::new();
-        let mut changed = false;
-        for (variable, uses) in var_uses.iter() {
-            match uses {
-                0 => {
-                    self.definitions.remove(variable);
-                }
-                1 => {
-                    let definition = self.definitions.remove(variable).expect("Expected definition to be some.").definition;
-                    inline_definitions.insert(*variable, definition);
-                    changed = true;
-                }
-                _ => {}
-            }
-        }
-        self.apply_to_all_trees_mut(|atom_tree| {
-            atom_tree.inline_var(&inline_definitions);
-        });
-        changed
-    }
+    
     fn apply_to_all_trees_mut<F>(&mut self, predicate: F)
     where
         F: Fn(&mut AtomTree)
