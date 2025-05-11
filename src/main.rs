@@ -20,7 +20,7 @@ fn parse_args() -> Settings {
                 settings.optimize = true;
             }
             "-p" => {
-                settings.project_path = args.next();
+                settings.base_path = args.next();
             }
             "-o" => {
                 settings.output_directory = args.next();
@@ -43,7 +43,7 @@ fn main() {
             output_code_logs: false,
             print_debug_logs: false,
             heavy_optimization: false,
-            project_path: Some("./wip.coala".into()),
+            base_path: Some("./".into()),
             ..Default::default()
         }
     } else {

@@ -143,7 +143,7 @@ impl TokenBlock {
         return None;
     }
 }
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum TokenBlockType<'a> {
     Token(&'a TokenType),
     Block(&'a Brace)

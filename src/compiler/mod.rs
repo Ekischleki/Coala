@@ -3,10 +3,12 @@ use std::{fs::File, io::Write, path::PathBuf};
 use atom_tree_to_graph::AtomTreeCompiler;
 use atom_tree_translate::AtomTreeTranslator;
 use compilation::Compilation;
+use diagnostic::Diagnostic;
 use file_reader::FileReader;
 use parser::Parser;
 use settings::Settings;
 use string_file_reader::StringFileReader;
+use syntax::ImportSyntax;
 
 pub mod code_location;
 pub mod export;
@@ -24,6 +26,9 @@ mod parser;
 mod atom_tree_translate;
 mod atom_tree_to_graph;
 mod block_parser;
+mod lib_embed;
+
+
 
 fn end_compilation(settings: &Settings, compilation: &Compilation) {
     if !compilation.is_error_free() {
@@ -58,10 +63,51 @@ fn end_compilation(settings: &Settings, compilation: &Compilation) {
         }
     }
 }
+pub fn to_path(base_path: &PathBuf, import_syntax: &ImportSyntax) -> Result<PathBuf, Diagnostic> {
+    let mut path = base_path.clone();
+    
+    for part in import_syntax.path.iter().take(import_syntax.path.len() - 1) {
+        path.push(part.value.to_owned());
+        if !path.exists() {
+            return Err(Diagnostic::new(
+                diagnostic::DiagnosticType::Error,
+                format!("Couldn't find part of import path"),
+                part.location.clone(),
+                diagnostic::DiagnosticPipelineLocation::IO
+            ));
+        }
+    }
+    let file = import_syntax.path.last().unwrap().to_owned();
+    path.push(format!("{}.coala", file.value));
+    if !path.is_file() {
+        return Err(Diagnostic::new(
+            diagnostic::DiagnosticType::Error,
+            format!("Couldn't find part of import path (\"{}.coala\")", file.value),
+            file.location.clone(),
+            diagnostic::DiagnosticPipelineLocation::IO
+        ));
+    }
 
+    Ok(path)
+}
+pub fn parse_file<T: FileReader>(file: &PathBuf, internal: bool, file_reader: &mut T, parser: &mut Parser, settings: &Settings) {
+    println!("Reading file ({:?})...", file);
+    if !internal {
+        if let Err(diagnostic) = file_reader.reset_to_file(file) {
+            parser.compilation.add_diagnostic(diagnostic);
+            return;
+        }
+    }
+    println!("Lexing file ({:?})...", file);
+    let tokens = lexer::tokenize(file_reader, file, parser.compilation).unwrap();
+    println!("Preparsing file ({:?})...", file);
+    let mut tokens = block_parser::TokenBlock::from_token_stream(tokens, parser.compilation).unwrap();
+    println!("Parsing file ({:?})...", file);
+    parser.parse_file(&mut tokens);
+}
 pub fn compile(settings: &Settings) {
     println!("Loading project...");
-    let project = &settings.project_path;
+    let project = &settings.base_path;
     let mut compilation = Compilation::new(settings.to_owned());
     let file: String;
     match project {
@@ -73,36 +119,56 @@ pub fn compile(settings: &Settings) {
         }
 
     }
-    let file: PathBuf = file.into();
-    
-    if !file.exists() {
-        compilation.add_error("Couldn't find project file", None);
-        end_compilation(settings, &compilation);
-        return;
-    }
-    
-    let mut file_reader = StringFileReader::new();
-    file_reader.reset_to_file(&file).unwrap();
-    println!("Lexing project...");
-
-    let tokens = lexer::tokenize(&mut file_reader, &file, &mut compilation).unwrap();
-    if settings.print_debug_logs {
-        println!("{:#?}", tokens);
-    }
-
-    let mut tokens = block_parser::TokenBlock::from_token_stream(tokens, &mut compilation).unwrap();
-    if settings.print_debug_logs {
-        println!("{:#?}", tokens);
-    }
-    //Brace errors tend to be heavy and have a lot of side effects, so we'll stop here if any are found to not confuse the user
-    if !(settings.ignore_errors || compilation.is_error_free()) {
-        end_compilation(settings, &compilation);
-        return;
-    }
-    println!("Parsing project...");
-
+    let base_path: PathBuf = file.into();
     let mut parser = Parser::new(&mut compilation);
-    parser.parse_file(&mut tokens);
+    let mut file_reader = StringFileReader::new();
+
+    let mut main_file = base_path.clone();
+    main_file.push("main.coala");
+
+    if main_file.is_file() { 
+
+        parse_file(&main_file, false, &mut file_reader,  &mut parser, settings);
+    } else {
+        compilation.add_error("No main file found. Please make sure your base directory contains a file called \"main.coala\"", None);
+        end_compilation(settings, &compilation);
+        return;
+    }
+
+    while let Some((import_syntax, _)) = parser.imports.iter().find(|f| !f.1) {
+        let import_syntax = import_syntax.clone();
+        *parser.imports.get_mut(&import_syntax).unwrap() = true;
+        if import_syntax.path.first().unwrap().value == "std" {
+            let mut path = String::new();
+            import_syntax.path.iter().skip(1).for_each(|part| {
+                if path.is_empty() {
+                    path.push_str(&format!("{}", part.value));
+                } else {
+                    path.push_str(&format!("/{}", part.value));
+                }
+            });
+            path.push_str(".coala");
+            let file = lib_embed::get_std_lib_file(&path);
+            if file.is_none() {
+                parser.compilation.add_error(&format!("Couldn't find standard library file {path}"), None);
+                continue;
+            }
+            let file = file.unwrap();
+            file_reader.reset_to_string(&file);
+            parse_file(&PathBuf::from(format!("std/{path}")), true, &mut file_reader, &mut parser, settings);
+            continue;
+        }
+        let file = match to_path(&base_path, &import_syntax) {
+            Ok(path) => path,
+            Err(diagnostic) => {
+                parser.compilation.add_diagnostic(diagnostic);
+                continue;
+            }
+        };
+        
+        parse_file(&file, false, &mut file_reader, &mut parser, settings);
+    }
+
     let collections = parser.collections;
     
     let problems = parser.problems;

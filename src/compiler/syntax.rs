@@ -150,3 +150,8 @@ pub struct CompositeTypeSyntax {
     pub name: LocationValue<String>,
     pub fields: Vec<TypedIdentifierSyntax>
 }
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct ImportSyntax {
+    pub path: Vec<LocationValue<String>>,
+}

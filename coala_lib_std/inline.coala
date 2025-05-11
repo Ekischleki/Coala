@@ -1,0 +1,9 @@
+## Convenience functions 
+collection inline {
+    
+    ## Basically an inline if statement. Returns select_true if condition is true, otherwise returns select_false.
+    sub select(bool: condition, bool: select_true, bool: select_false) {
+        let select_a = bool::and(select_true, condition)
+        let select_b = bool::and(select_false, not condition)
+    } = or (select_a, select_b)
+}

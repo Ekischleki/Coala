@@ -13,6 +13,10 @@ impl StringFileReader {
     pub fn new() -> Self {
         Self { position: 0, file: vec![], file_path: PathBuf::new()}
     }
+    pub fn reset_to_string(&mut self, string: &str) {
+        self.position = 0;
+        self.file = string.chars().collect();
+    }
 }
 
 impl FileReader for StringFileReader {
