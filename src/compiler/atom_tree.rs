@@ -292,6 +292,7 @@ impl Default for AtomTree {
 }
 
 impl AtomTree {
+    //Todo: Find a notion of ordering atom trees inside an or statement, and then reduce or statements to only be binary
     fn outline_common_expressions(&mut self, outlined: &mut HashMap<AtomTree, usize>, var_count: &mut usize) {
         match self {
             Self::Variable { .. } => {
