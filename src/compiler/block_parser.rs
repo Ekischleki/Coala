@@ -1,6 +1,8 @@
+use std::usize;
+
 use crate::compiler::{code_location::CodeLocation, compilation::Compilation, token::{Brace, BraceState, Delimiter, Token, TokenType}, type_stream::TypeStream};
 
-use super::token::Keyword;
+use super::{code_location::LocationValue, token::{AtomSub, AtomType, Keyword}};
 
 #[derive(Debug)]
 pub enum TokenBlock {
@@ -64,44 +66,63 @@ impl TokenBlock {
             TokenBlock::Block(b) => (b.span.to_owned(), Some(b))
         }
     }
-    pub fn into_identifier_or_error(self, compilation: &mut Compilation) -> Option<String> {
+    pub fn into_identifier_or_error(self, compilation: &mut Compilation) -> Option<LocationValue<String>> {
         let (location, token) = self.into_token_or_none();
         if let Some(token) = token {
             if let Ok(identifier) = token.into_token_type().into_identifier() {
-                return Some(identifier);
+                return Some(LocationValue::new(Some(location), identifier));
             }
         }
         compilation.add_error("Expected identifier", Some(location));
         return None;
     }
-    pub fn into_integer_or_error(self, compilation: &mut Compilation) -> Option<usize> {
+    pub fn into_integer_or_error(self, compilation: &mut Compilation) -> Option<LocationValue<usize>> {
         let (location, token) = self.into_token_or_none();
         if let Some(token) = token {
             if let Ok(int) = token.into_token_type().into_integer() {
-                return Some(int);
+                return Some(LocationValue::new(Some(location), int));
             }
         }
         compilation.add_error("Expected integer", Some(location));
         return None;
     }
 
-    pub fn into_string_or_error(self, compilation: &mut Compilation) -> Option<String> {
+    pub fn into_string_or_error(self, compilation: &mut Compilation) -> Option<LocationValue<String>> {
         let (location, token) = self.into_token_or_none();
         if let Some(token) = token {
-            if let Ok(int) = token.into_token_type().into_string() {
-                return Some(int);
+            if let Ok(string) = token.into_token_type().into_string() {
+                return Some(LocationValue::new(Some(location), string));
             }
         }
         compilation.add_error("Expected integer", Some(location));
         return None;
     }
-
-    pub fn assert_is_keyword_or_error(&self, compilation: &mut Compilation, expected_keyword: Keyword) -> Option<()> {
+    pub fn into_atom_type_or_error(self, compilation: &mut Compilation) -> Option<LocationValue<AtomType>> {
+        let (location, token) = self.into_token_or_none();
+        if let Some(token) = token {
+            if let Ok(super::token::Atom::Type(atom_type)) = token.into_token_type().into_atom() {
+                return Some(LocationValue::new(Some(location), atom_type));
+            }
+        }
+        compilation.add_error("Expected atom type (true/false)", Some(location));
+        return None;
+    }
+    pub fn into_atom_sub_or_error(self, compilation: &mut Compilation) -> Option<LocationValue<AtomSub>> {
+        let (location, token) = self.into_token_or_none();
+        if let Some(token) = token {
+            if let Ok(super::token::Atom::Sub(atom_type)) = token.into_token_type().into_atom() {
+                return Some(LocationValue::new(Some(location), atom_type));
+            }
+        }
+        compilation.add_error("Expected atom sub (not/or)", Some(location));
+        return None;
+    }
+    pub fn assert_is_keyword_or_error(&self, compilation: &mut Compilation, expected_keyword: Keyword) -> Option<CodeLocation> {
         let (location, token) = self.as_token_or_none();
         if let Some(token) = token {
             if let Some(found_keyword) = token.token_type().as_keyword() {
                 if found_keyword == &expected_keyword {
-                    return Some(())
+                    return Some(location)
                 }
             }
         }
@@ -109,12 +130,12 @@ impl TokenBlock {
         return None;
     }
 
-    pub fn assert_is_delimiter_or_error(&self, compilation: &mut Compilation, expected_delimiter: Delimiter) -> Option<()> {
+    pub fn assert_is_delimiter_or_error(&self, compilation: &mut Compilation, expected_delimiter: Delimiter) -> Option<CodeLocation> {
         let (location, token) = self.as_token_or_none();
         if let Some(token) = token {
             if let Some(found_delim) = token.token_type().as_delimiter() {
                 if found_delim == &expected_delimiter {
-                    return Some(())
+                    return Some(location)
                 }
             }
         }

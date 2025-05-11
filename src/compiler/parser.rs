@@ -2,6 +2,9 @@ use std::collections::HashMap;
 
 use crate::compiler::{block_parser::{Block, TokenBlock, TokenBlockType}, compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, syntax::{CodeSyntax, CollectionSyntax, CompositeTypeSyntax, ExpressionSyntax, FieldAssignSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypeSyntax, TypedIdentifierSyntax}, token::{Atom, Brace, Delimiter, Keyword, TokenType}, type_stream::TypeStream};
 
+use super::code_location::LocationValue;
+
+
 pub struct Parser<'a> {
     //tokens: TypeStream<TokenBlock>,
     compilation: &'a mut Compilation,
@@ -94,11 +97,11 @@ impl<'a> Parser<'a> {
         token_stream.next().assert_is_delimiter_or_error(self.compilation, Delimiter::Equals);
         let int = token_stream.next().into_integer_or_error(self.compilation)?;
 
-        if self.supers.contains_key(&identifier) {
+        if self.supers.contains_key(&identifier.value) {
             self.compilation.add_error("The name of this super is already in use", Some(identifier_location));
             return None;
         }
-        self.supers.insert(identifier, int);
+        self.supers.insert(identifier.value, int.value);
 
         Some(())
     }
@@ -143,7 +146,7 @@ impl<'a> Parser<'a> {
                 None => continue
             };
 
-            self.solutions.insert(function_name.to_owned(), SubCallSyntax { location: SubLocation::Structure { collection: String::new(), sub: function_name }, application: Some(application) });
+            self.solutions.insert(function_name.value.to_owned(), SubCallSyntax { location: SubLocation::Structure { collection: LocationValue::default(), sub: function_name }, application: Some(application) });
             
             if token_stream.is_empty() {
                 break;
@@ -348,7 +351,7 @@ impl<'a> Parser<'a> {
                 let syntax = SubCallSyntax {
                     application: Some(application),
                     location: SubLocation::Structure {
-                        collection: structure.to_owned(),
+                        collection: LocationValue::new(Some(statement.code_location().to_owned()), structure.to_owned()),
                         sub
                     }
                 };
@@ -381,15 +384,15 @@ impl<'a> Parser<'a> {
             TokenBlockType::Token(TokenType::String(_)) => {
                 return Some(ExpressionSyntax::String(node_value_token.into_string_or_error(self.compilation)?));
             }
-            TokenBlockType::Token(TokenType::Integer(i)) => {
-                return Some(ExpressionSyntax::Int(*i));
+            TokenBlockType::Token(TokenType::Integer(_)) => {
+                return Some(ExpressionSyntax::Int(node_value_token.into_integer_or_error(self.compilation)?));
             }
-            TokenBlockType::Token(TokenType::Atom(Atom::Type(t))) => {
-                return Some(ExpressionSyntax::Literal(t.to_owned()))
+            TokenBlockType::Token(TokenType::Atom(Atom::Type(_))) => {
+                return Some(ExpressionSyntax::Literal(node_value_token.into_atom_type_or_error(self.compilation)?));
             }
 
-            TokenBlockType::Token(TokenType::Identifier(structure)) if token_stream.peek().is_some_and(|s| s.token_type().is_double_colon()) => {
-                
+            TokenBlockType::Token(TokenType::Identifier(_)) if token_stream.peek().is_some_and(|s| s.token_type().is_double_colon()) => {
+                let structure = node_value_token.into_identifier_or_error(self.compilation)?;
                 token_stream.next();
                 token_stream.error_if_empty(self.compilation, "identifier")?;
 
@@ -421,7 +424,8 @@ impl<'a> Parser<'a> {
                 return Some(ExpressionSyntax::Sub(syntax.into()))
 
             }
-            TokenBlockType::Token(TokenType::Identifier(type_name)) if token_stream.peek().is_some_and(|s| s.token_type().is_curly_block()) => {
+            TokenBlockType::Token(TokenType::Identifier(_)) if token_stream.peek().is_some_and(|s| s.token_type().is_curly_block()) => {
+                let type_name = node_value_token.into_identifier_or_error(self.compilation)?;
                 token_stream.error_if_empty(self.compilation, "code block")?;
 
                 let assign_block = token_stream.next().into_block_type_or_error(self.compilation, Brace::Curly)?;
@@ -434,7 +438,8 @@ impl<'a> Parser<'a> {
                 return self.parse_access(token_stream, base);
             }
 
-            TokenBlockType::Token(TokenType::Atom(Atom::Sub(sub))) => {
+            TokenBlockType::Token(TokenType::Atom(Atom::Sub(_))) => {
+                let sub = node_value_token.into_atom_sub_or_error(self.compilation)?;
                 let application = self.parse_expression(token_stream)?;
                 let syntax = SubCallSyntax {
                     application: Some(application),
@@ -474,7 +479,7 @@ impl<'a> Parser<'a> {
 
         }        
     }
-    pub fn parse_access(&mut self, token_stream: &mut TypeStream<TokenBlock>, base: String) -> Option<ExpressionSyntax> {
+    pub fn parse_access(&mut self, token_stream: &mut TypeStream<TokenBlock>, base: LocationValue<String>) -> Option<ExpressionSyntax> {
         let mut chain = ExpressionSyntax::Variable(base);
 
         while let Some(t) = token_stream.peek().map(|s| s.token_type()) {
@@ -484,11 +489,12 @@ impl<'a> Parser<'a> {
                     token_stream.error_if_empty(self.compilation, "identifier")?;
                     let access_token = token_stream.next();
                     chain = match access_token.token_type() {
-                        TokenBlockType::Token(TokenType::Integer(idx)) => {
-                            ExpressionSyntax::AccessIdx { base: chain.into(), idx: *idx }
+                        TokenBlockType::Token(TokenType::Integer(_)) => {
+                            let idx = access_token.into_integer_or_error(self.compilation)?;
+                            ExpressionSyntax::AccessIdx { base: chain.into(), idx }
                         },
                         TokenBlockType::Token(TokenType::Identifier(_)) => {
-                            let identifier: String = access_token.into_identifier_or_error(self.compilation)?;
+                            let identifier = access_token.into_identifier_or_error(self.compilation)?;
                             ExpressionSyntax::Access { base: chain.into(), field: identifier }
                         }
                         _ => {

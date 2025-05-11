@@ -14,7 +14,7 @@ pub struct AtomTreeTranslator<'a> {
 
 impl<'a> AtomTreeTranslator<'a> {
     pub fn find_composite(&self, name: &String) -> Option<&CompositeTypeSyntax> {
-        self.composites.iter().find(|composite| &composite.name == name)
+        self.composites.iter().find(|composite| &composite.name.value == name)
     }
     pub fn new(comp: &'a mut Compilation, collections: Vec<CollectionSyntax>, composites: Vec<CompositeTypeSyntax>) -> Self {
         Self {
@@ -29,20 +29,20 @@ impl<'a> AtomTreeTranslator<'a> {
 
         for problem in problems {
             let mut input = vec![];
-            let solution = match solutions.get(&problem.name) {
+            let solution = match solutions.get(&problem.name.value) {
                 Some(s) if s.application.is_some() => {
                     let application = s.application.as_ref().unwrap();
                     match application {
                         ExpressionSyntax::Literal(l) => {
-                            vec![l.to_owned().into()]
+                            vec![l.value.to_owned().into()]
                         }
                         ExpressionSyntax::Tuple(t) => {
                             t.iter().map(|syntax| {
                                 if let ExpressionSyntax::Literal(l) = syntax {
-                                    l.to_owned().into()
+                                    l.value.to_owned().into()
                                 } else {
-                                    self.compilation.add_error("Expected tuple of literals", None);
-                                    Label::Null
+                                    self.compilation.add_error("Expected tuple of literals", problem.name.location.clone());
+                                    Label::Null.into()
                                 }
                             }).collect()
                         }
@@ -70,7 +70,7 @@ impl<'a> AtomTreeTranslator<'a> {
     
         for i in (0..map_args.len()).rev() {
             let var = input_args.remove(i).write_as_var(self);
-            map.insert(map_args[i].name.to_owned(), var);
+            map.insert(map_args[i].name.value.to_owned(), var);
         }
     }
 
@@ -153,7 +153,7 @@ impl<'a> AtomTreeTranslator<'a> {
                 CodeSyntax::For { iterator_variable, iterator_amount, iterator_body } => {
                     let iterator_amount = self.compile_expression(iterator_amount, variables)?.get_as_int_or_error(self.compilation)?;
                     for i in 0..iterator_amount {
-                        variables.insert(iterator_variable.to_owned(), ValueCollection::Super(SuperValue::Int(i)));
+                        variables.insert(iterator_variable.value.to_owned(), ValueCollection::Super(SuperValue::Int(i)));
                         self.compile_code_block(iterator_body, variables);
                     }
                 }
@@ -201,7 +201,7 @@ impl<'a> AtomTreeTranslator<'a> {
                 }
                 CodeSyntax::Let { variable, value } => {
                     let value = self.compile_expression(&value, variables).unwrap_or_default();    
-                    variables.insert(variable.to_owned(), value.write_as_var(self));
+                    variables.insert(variable.value.to_owned(), value.write_as_var(self));
                 }
                 CodeSyntax::Force { value, type_syntax } => {
                     let value = self.compile_expression(&value, variables)?;
@@ -292,9 +292,6 @@ impl<'a> AtomTreeTranslator<'a> {
                 }
                 current_string.push_str(")");
             }
-            ValueCollection::Super(SuperValue::String(s)) => {
-                current_string.push_str(&s);
-            }
             _ => {
                 self.compilation.add_error("Type cannot be formatted for outputting", None);
             }
@@ -302,10 +299,12 @@ impl<'a> AtomTreeTranslator<'a> {
     }
 
     pub fn compile_sub_call(&mut self, sub_call_syntax: &SubCallSyntax, variables: &mut HashMap<String, ValueCollection>) -> Option<ValueCollection> {
+        
         let application = match  &sub_call_syntax.application {
             Some(application) => self.compile_expression(application, variables)?,
             None => ValueCollection::Tuple(vec![])
         };
+        let call_location = sub_call_syntax.location.code_location();
         match &sub_call_syntax.location {
             SubLocation::Super(name) => {
                 //println!("Application: {:#?}", application);
@@ -317,14 +316,14 @@ impl<'a> AtomTreeTranslator<'a> {
                     _ => vec![application]
                 };
                 //println!("Application: {:#?}", application);
-                match name.as_str() {
+                match name.value.as_str() {
                     "add" => {
                         if application.len() == 2 {
                             let a = application.pop()?.get_as_int_or_error(self.compilation)?;
                             let b = application.pop()?.get_as_int_or_error(self.compilation)?;
                             Some(ValueCollection::Super(SuperValue::Int(a.wrapping_add(b))))
                         } else {
-                            self.compilation.add_error("Incorrect parameters for add function. Expected 2 integer parameters.", None);
+                            self.compilation.add_error("Incorrect parameters for add function. Expected 2 integer parameters.", call_location);
                             None
                         }
                     }
@@ -334,7 +333,7 @@ impl<'a> AtomTreeTranslator<'a> {
                             let a = application.pop()?.get_as_int_or_error(self.compilation)?;
                             Some(ValueCollection::Super(SuperValue::Int(a.wrapping_sub(b))))
                         } else {
-                            self.compilation.add_error("Incorrect parameters for sb function. Expected 2 integer parameters.", None);
+                            self.compilation.add_error("Incorrect parameters for sb function. Expected 2 integer parameters.", call_location);
                             None
                         }
                     }
@@ -344,7 +343,7 @@ impl<'a> AtomTreeTranslator<'a> {
                             let b = application.pop()?.get_as_int_or_error(self.compilation)?;
                             Some(ValueCollection::Super(SuperValue::Int(a.wrapping_mul(b))))
                         } else {
-                            self.compilation.add_error("Incorrect parameters for mul function. Expected 2 integer parameters.", None);
+                            self.compilation.add_error("Incorrect parameters for mul function. Expected 2 integer parameters.", call_location);
                             None
                         }
                     }
@@ -358,7 +357,7 @@ impl<'a> AtomTreeTranslator<'a> {
                             }
                             Some(ValueCollection::Super(SuperValue::Int(a / b)))
                         } else {
-                            self.compilation.add_error("Incorrect parameters for div function. Expected 2 integer parameters.", None);
+                            self.compilation.add_error("Incorrect parameters for div function. Expected 2 integer parameters.", call_location);
                             None
                         }
                     }
@@ -372,7 +371,7 @@ impl<'a> AtomTreeTranslator<'a> {
                             }
                             Some(ValueCollection::Super(SuperValue::Int(a % b)))
                         } else {
-                            self.compilation.add_error("Incorrect parameters for mod function. Expected 2 integer parameters.", None);
+                            self.compilation.add_error("Incorrect parameters for mod function. Expected 2 integer parameters.", call_location);
                             None
                         }
                     }
@@ -382,7 +381,7 @@ impl<'a> AtomTreeTranslator<'a> {
                             let b = application.pop()?.get_as_int_or_error(self.compilation)?;
                             Some(ValueCollection::Single(AtomTree::AtomType {atom: if a == b { AtomType::True} else {AtomType::False}} ))
                         } else {
-                            self.compilation.add_error("Incorrect parameters for eq function. Expected 2 integer parameters.", None);
+                            self.compilation.add_error("Incorrect parameters for eq function. Expected 2 integer parameters.", call_location);
                             None
                         }
                     }
@@ -392,7 +391,7 @@ impl<'a> AtomTreeTranslator<'a> {
                             let b = application.pop()?.get_as_int_or_error(self.compilation)?;
                             Some(ValueCollection::Single(AtomTree::AtomType {atom: if a != b { AtomType::True} else {AtomType::False}} ))
                         } else {
-                            self.compilation.add_error("Incorrect parameters for ne function. Expected 2 integer parameters.", None);
+                            self.compilation.add_error("Incorrect parameters for ne function. Expected 2 integer parameters.", call_location);
                             None
                         }
                     }
@@ -402,7 +401,7 @@ impl<'a> AtomTreeTranslator<'a> {
                             let a = application.pop()?.get_as_int_or_error(self.compilation)?;
                             Some(ValueCollection::Single(AtomTree::AtomType {atom: if a > b { AtomType::True} else {AtomType::False}} ))
                         } else {
-                            self.compilation.add_error("Incorrect parameters for grt function. Expected 2 integer parameters.", None);
+                            self.compilation.add_error("Incorrect parameters for grt function. Expected 2 integer parameters.", call_location);
                             None
                         }
                     }
@@ -412,7 +411,7 @@ impl<'a> AtomTreeTranslator<'a> {
                             let a = application.pop()?.get_as_int_or_error(self.compilation)?;
                             Some(ValueCollection::Single(AtomTree::AtomType {atom: if a >= b { AtomType::True} else {AtomType::False}} ))
                         } else {
-                            self.compilation.add_error("Incorrect parameters for grte function. Expected 2 integer parameters.", None);
+                            self.compilation.add_error("Incorrect parameters for grte function. Expected 2 integer parameters.", call_location);
                             None
                         }
                     }
@@ -422,7 +421,7 @@ impl<'a> AtomTreeTranslator<'a> {
                             
                             Some(ValueCollection::Super(SuperValue::Int(a.len())))
                         } else {
-                            self.compilation.add_error("Incorrect parameters for len function. Expected 1 integer parameter.", None);
+                            self.compilation.add_error("Incorrect parameters for len function. Expected 1 integer parameter.", call_location);
                             None
                         }
                     }
@@ -432,7 +431,7 @@ impl<'a> AtomTreeTranslator<'a> {
                             let a = application.pop()?.get_as_int_or_error(self.compilation)?;
                             Some(ValueCollection::Super(SuperValue::Int(a.min(b))))
                         } else {
-                            self.compilation.add_error("Incorrect parameters for min function. Expected 2 integer parameters.", None);
+                            self.compilation.add_error("Incorrect parameters for min function. Expected 2 integer parameters.", call_location);
                             None
                         }
                     }
@@ -442,18 +441,18 @@ impl<'a> AtomTreeTranslator<'a> {
                             let a = application.pop()?.get_as_int_or_error(self.compilation)?;
                             Some(ValueCollection::Super(SuperValue::Int(a.max(b))))
                         } else {
-                            self.compilation.add_error("Incorrect parameters for max function. Expected 2 integer parameters.", None);
+                            self.compilation.add_error("Incorrect parameters for max function. Expected 2 integer parameters.", call_location);
                             None
                         }
                     }
                     _ => {
-                        self.compilation.add_error(&format!("Unknown super function: {name}"), None);
+                        self.compilation.add_error(&format!("Unknown super function: {}", name.value), name.location.to_owned());
                         None
                     }
                 }
             }
             SubLocation::Atom(a) => {
-                match a {
+                match a.value {
                     AtomSub::Not => {
                         let application = application.get_as_atom_tree_if_single_or_error(self.compilation)?;
                         Some(ValueCollection::Single(AtomTree::Not(application.into())))
@@ -475,14 +474,29 @@ impl<'a> AtomTreeTranslator<'a> {
                 }
             }
             SubLocation::Structure { collection, sub } => {
-                let collection = self.collections.iter().find(|&f| &f.name == collection).unwrap();
-                let sub = collection.subs.iter().find(|&f| &f.name == sub).unwrap().clone();
+                let collection_ref = self.collections.iter().find(|&f| f.name.value == collection.value);
+                let collection_ref = match collection_ref {
+                    None => {
+                        self.compilation.add_error(&format!("Couldn't find collection \"{}\"", collection.value), collection.location.to_owned());
+                        return None;
+                    }
+                    Some(collection) => collection
+                };
+                let sub_ref = collection_ref.subs.iter().find(|&f| f.name.value == sub.value);
+                let sub_ref = match sub_ref {
+                    None => {
+                        self.compilation.add_error(&format!("Couldn't find sub in collection: \"{}\"", collection.value), collection.location.to_owned());
+                        return None;
+                    }
+                    Some(collection) => collection
+                }.clone(); //Cloned because we would need to borrow self as mut later.
+
                 let application = if let ValueCollection::Tuple(t) = application {
                     t
                 } else {
                     vec![application]
                 };
-                self.compile_substructure(&sub, application)
+                self.compile_substructure(&sub_ref, application)
 
             }
         
@@ -508,57 +522,57 @@ impl<'a> AtomTreeTranslator<'a> {
                 }
             }
             ExpressionSyntax::Int(i) => {
-                Some(ValueCollection::Super(SuperValue::Int(*i)))
+                Some(ValueCollection::Super(SuperValue::Int(i.value)))
             }
             ExpressionSyntax::String(string) => {
-                Some(ValueCollection::Super(SuperValue::String(string.to_owned())))
+                Some(ValueCollection::Super(SuperValue::String(string.value.to_owned())))
             }
             ExpressionSyntax::Access{base, field} => {
-                self.compile_access_expression(&base, variables)?.access_identifier_or_error(field, compilation).cloned() 
+                self.compile_access_expression(&base, variables)?.access_identifier_or_error(&field.value, compilation).cloned() 
 
             }
             ExpressionSyntax::AccessIdx{base, idx} => {
-                self.compile_access_expression(&base, variables)?.access_index_or_error(idx, compilation).cloned()
+                self.compile_access_expression(&base, variables)?.access_index_or_error(&idx.value, compilation).cloned()
             }
             ExpressionSyntax::IndexOp { base, index: idx } => {
                 let idx = self.compile_expression(idx, variables)?.get_as_int_or_error(self.compilation)?;
                 self.compile_access_expression(&base, variables)?.access_indexed_or_error(&idx, compilation).cloned()
             }
             ExpressionSyntax::CompositeConstructor { type_name, field_assign } => {
-                let composite = match self.find_composite(type_name) {
+                let composite = match self.find_composite(&type_name.value) {
                     Some(s) => s,
                     None => {
-                        self.compilation.add_error(&format!("Couldn't find type {type_name}"), None);
+                        self.compilation.add_error(&format!("Couldn't find type {}", type_name.value), type_name.location.clone());
                         return None;
                     }
                 };
                 let mut missing_fields = composite.fields.clone();
                 let mut assigned_fields = HashMap::new();
                 for field_assign in field_assign {
-                    match missing_fields.iter().enumerate().find(|(_, n)| n.name == field_assign.left) {
+                    match missing_fields.iter().enumerate().find(|(_, n)| n.name.value == field_assign.left.value) {
                         Some((i, _)) => {
                             missing_fields.remove(i);
-                            assigned_fields.insert(field_assign.left.clone(), self.compile_expression(&field_assign.right, variables)?);
+                            assigned_fields.insert(field_assign.left.value.clone(), self.compile_expression(&field_assign.right, variables)?);
                         },
                         None => {
-                            self.compilation.add_error(&format!("Field \"{}\" has either already been assigned, or is not in the composite type.", field_assign.left), None);
+                            self.compilation.add_error(&format!("Field \"{}\" has either already been assigned, or is not in the composite type.", field_assign.left.value), field_assign.left.location.clone());
                         }
                     }
                 }
                 if !missing_fields.is_empty() {
-                    self.compilation.add_error("Some fields of the struct haven't been assigned", None);
+                    self.compilation.add_error("Some fields of the struct haven't been assigned", type_name.location.clone());
                     return None;
                 }
-                return Some(ValueCollection::Composite { composite_name: type_name.clone(), fields: assigned_fields })
+                return Some(ValueCollection::Composite { composite_name: type_name.clone().value, fields: assigned_fields })
             }
             ExpressionSyntax::Literal(atom) => {
-                Some(ValueCollection::Single(AtomTree::AtomType { atom: *atom }))
+                Some(ValueCollection::Single(AtomTree::AtomType { atom: atom.value }))
             }
             ExpressionSyntax::Variable(name) => {
-                if let Some(var) = variables.get(name) {
+                if let Some(var) = variables.get(&name.value) {
                     Some(var.to_owned())
                 } else {
-                    self.compilation.add_error(&format!("Variable {name} not found in current scope."), None);
+                    self.compilation.add_error(&format!("Variable {} not found in current scope.", name.value), name.location.clone());
                     None
                 }
             }
@@ -592,11 +606,11 @@ impl<'a> AtomTreeTranslator<'a> {
         match value {
             ExpressionSyntax::Access { base, field } => {
                 let base = self.compile_access_expression(base, variables)?;
-                base.access_identifier_or_error(field, compilation)
+                base.access_identifier_or_error(&field.value, compilation)
             }
             ExpressionSyntax::AccessIdx { base, idx } => {
                 let base = self.compile_access_expression(base, variables)?;
-                base.access_index_or_error(idx, compilation)
+                base.access_index_or_error(&idx.value, compilation)
 
             }
             ExpressionSyntax::IndexOp { base, index } => {
@@ -605,10 +619,10 @@ impl<'a> AtomTreeTranslator<'a> {
                 base.access_indexed_or_error(&index, compilation)
             }
             ExpressionSyntax::Variable(name) => {
-                if let Some(var) = variables.get_mut(name) {
+                if let Some(var) = variables.get_mut(&name.value) {
                     Some(var)
                 } else {
-                    compilation.add_error(&format!("Variable {name} not found in current scope."), None);
+                    compilation.add_error(&format!("Variable {} not found in current scope.", name.value), name.location.clone());
                     None
                 }
             }
