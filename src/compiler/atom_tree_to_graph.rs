@@ -108,6 +108,63 @@ impl AtomTreeCompiler {
             }
         }
     }
+    fn or(&mut self, node_a: usize, node_b: usize) -> usize {
+        Node::force_bool(node_a, self);
+        Node::force_bool(node_b, self);
+        let a_label = self.nodes[node_a].label;
+        let b_label = self.nodes[node_b].label;
+        let res = a_label.or(&b_label);
+
+        let c_1 = Node::new(self, 
+            match res {
+                Label::Null => Label::Null,
+                Label::False => Label::True,
+                Label::True => Label::Neutral,
+                _ => panic!()
+            }
+        );
+        Node::force_bool_plus_neutral(c_1, self);
+        Node::connect(node_a, c_1, self);
+        Node::connect(node_b, c_1, self);
+
+        let a_1 = Node::new(self, match (res, b_label) {
+            (Label::Null, _) => Label::Null,
+            (Label::True, Label::False) => Label::False,
+            _ => Label::Neutral
+        });
+        Node::force_bool_plus_neutral(a_1, self);
+
+        Node::connect(node_a, a_1, self);
+
+        let b_1 = Node::new(self, match (res, b_label) {
+            (Label::Null, _) => Label::Null,
+            (Label::True, Label::False) => Label::Neutral,
+            (Label::False, _) => Label::True,
+            _ => Label::False
+        });
+        Node::force_bool_plus_neutral(b_1, self);
+
+        Node::connect(node_b, b_1, self);
+
+        Node::connect(a_1, b_1, self);
+
+        let c_2 = Node::new(self, match res {
+            Label::False => Label::Neutral,
+            Label::True => Label::False,
+            Label::Null => Label::Null,
+            _ => panic!()
+        });
+        Node::force_whitelist(c_2, self, vec![Label::False, Label::Neutral]);
+        Node::connect(c_2,c_1, self);
+
+        let output = Node::new(self, res);
+        Node::force_bool(output, self);
+        Node::connect(output, c_2, self);
+        Node::connect(output, a_1, self);
+        Node::connect(output, b_1, self);
+        return output;
+
+    }
     fn compile_tree(&mut self, atom_tree: &AtomTree) -> usize {
         match atom_tree {
             AtomTree::Variable { id } => { //Try to find the variable node, otherwise create it.
@@ -130,64 +187,15 @@ impl AtomTreeCompiler {
 
                 inverted_node
             }
-            AtomTree::Or(a, b) => {
-                let a = self.compile_tree(a);
-                let b = self.compile_tree(b);
-                Node::force_bool(a, self);
-                Node::force_bool(b, self);
-                let a_label = self.nodes[a].label;
-                let b_label = self.nodes[b].label;
-                let res = a_label.or(&b_label);
-
-                let c_1 = Node::new(self, 
-                    match res {
-                        Label::Null => Label::Null,
-                        Label::False => Label::True,
-                        Label::True => Label::Neutral,
-                        _ => panic!()
-                    }
-                );
-                Node::force_bool_plus_neutral(c_1, self);
-                Node::connect(a, c_1, self);
-                Node::connect(b, c_1, self);
-
-                let a_1 = Node::new(self, match (res, b_label) {
-                    (Label::Null, _) => Label::Null,
-                    (Label::True, Label::False) => Label::False,
-                    _ => Label::Neutral
-                });
-                Node::force_bool_plus_neutral(a_1, self);
-
-                Node::connect(a, a_1, self);
-
-                let b_1 = Node::new(self, match (res, b_label) {
-                    (Label::Null, _) => Label::Null,
-                    (Label::True, Label::False) => Label::Neutral,
-                    (Label::False, _) => Label::True,
-                    _ => Label::False
-                });
-                Node::force_bool_plus_neutral(b_1, self);
-
-                Node::connect(b, b_1, self);
-
-                Node::connect(a_1, b_1, self);
-
-                let c_2 = Node::new(self, match res {
-                    Label::False => Label::Neutral,
-                    Label::True => Label::False,
-                    Label::Null => Label::Null,
-                    _ => panic!()
-                });
-                Node::force_whitelist(c_2, self, vec![Label::False, Label::Neutral]);
-                Node::connect(c_2,c_1, self);
-
-                let output = Node::new(self, res);
-                Node::force_bool(output, self);
-                Node::connect(output, c_2, self);
-                Node::connect(output, a_1, self);
-                Node::connect(output, b_1, self);
-                return output;
-
+            AtomTree::Or(v) => {
+                let mut v = v.iter().map(|i| self.compile_tree(i)).collect::<Vec<_>>().into_iter();
+                let a = v.next().expect("Expected at least two element in or operation");
+                let b = v.next().expect("Expected at least two elements in or operation");
+                let mut left = self.or(a, b);
+                for i in v {
+                    left = self.or(left, i);
+                }
+                left
             },
             AtomTree::AtomType { atom } => match atom {
                 AtomType::True => self.true_node,

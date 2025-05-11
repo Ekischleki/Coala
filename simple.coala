@@ -1,15 +1,55 @@
+collection bool {
+    sub and(bool: a, bool: b) {} = not bool::nand(a, b)
+    sub nand(bool: a, bool: b) {} = or(not a, not b)
+    sub nor(bool: a, bool: b) {} = not or(a, b)
+    sub xor(bool: a, bool: b) {
+        let not_both_true = bool::nand(a, b)
+        let either_true = or(a, b)
+    } = bool::and(not_both_true, either_true)
+    sub xnor(bool: a, bool: b) {
+        let both_true = bool::and(a, b)
+        let both_false = bool::nor(a, b)
+    } = or(both_true, both_false)
+    sub eq(bool: a, bool: b) {} = bool::xnor(a, b)
+}
+collection bit {
+    # Selects a if select is true, selects b otherwise
+    sub select(bool: a, bool: b, bool: select) {
+        let select_a = bool::and(a, select)
+        let select_b = bool::and(b, not select)
+    } = or (select_a, select_b)
+
+    sub full_adder(bool: a, bool: b, bool: c) {
+        let a_xor_b = bool::xor(a, b)
+        let data = bool::xor(c, a_xor_b)
+        let carry = or(bool::and(a, b), bool::and(c, a_xor_b))
+    } = ArithmeticResult {
+        carry: carry,
+        data: data
+    }
+    sub half_adder(bool: a, bool: b) {
+        let carry = bool::and(a, b)
+        let data = bool::xor(a, b)
+    } = ArithmeticResult {
+            data: data, 
+            carry: carry
+        }
+}
+composite ArithmeticResult {
+    bool: data,
+    bool: carry
+}
 problem {
 
-    sub test() {
-        let a = 10
-        let b = 20
-        output super::add(a, b)
+    sub test(bool: a, bool: b, bool: c) {
+        let addition = bit::full_adder(a, b, c)  
+        force bool::and(addition.carry, addition.data) => true
     }
 }
 
 
 
 solution {
-    test()
+    test(true, true, true)
 }
 

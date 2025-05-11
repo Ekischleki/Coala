@@ -128,6 +128,7 @@ pub fn compile(settings: &Settings) {
         println!("{:#?}", atom_tree);
     }
     if settings.optimize {
+
         while atom_tree.remove_links() {
             if settings.print_debug_logs {
                 println!("{:#?}", atom_tree);
@@ -142,11 +143,37 @@ pub fn compile(settings: &Settings) {
                 if settings.print_debug_logs {
                     println!("{:#?}", atom_tree);
                 }
-            }     
-
+            }        
         }
+        if settings.heavy_optimization {
+            println!("Heavy optimization enabled, inlining all...");
+            atom_tree.inline_all();
+            println!("Second pass of simplification...");
+            while atom_tree.simp_all(&mut compilation) {
+                if settings.print_debug_logs {
+                    //println!("{:#?}", atom_tree);
+                }    
+            }
+        }
+        println!("Outlining common expressions");
+        atom_tree.outline_common_expressions();
+        if settings.print_debug_logs {
+            println!("{:#?}", atom_tree);
+        }
+        println!("Next pass of simplification...");
+        while atom_tree.simp_all(&mut compilation) {
+                if settings.print_debug_logs {
+                    println!("{:#?}", atom_tree);
+                }
+                while atom_tree.remove_links() {
+                    if settings.print_debug_logs {
+                        println!("{:#?}", atom_tree);
+                    }
+                } 
+            }
+        
     }
-
+    println!("Finalizing IR simplification...");
     atom_tree.finalize_simp();
     if settings.print_debug_logs {
         println!("{:#?}", atom_tree);

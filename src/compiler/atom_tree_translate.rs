@@ -79,10 +79,10 @@ impl<'a> AtomTreeTranslator<'a> {
         for condition in &self.condition_stack {
             match t {
                 AtomType::True => {
-                    value = AtomTree::Or(value.into(), AtomTree::Not(condition.to_owned().into()).into())
+                    value = AtomTree::Or(vec![value, AtomTree::Not(condition.to_owned().into())])
                 }
                 AtomType::False => {
-                    value = AtomTree::Not(AtomTree::Or(AtomTree::Not(value.into()).into(), AtomTree::Not(condition.to_owned().into()).into()).into())
+                    value = AtomTree::Not(AtomTree::Or(vec![AtomTree::Not(value.into()), AtomTree::Not(condition.to_owned().into())]).into());
                 }
             }
         }
@@ -127,17 +127,22 @@ impl<'a> AtomTreeTranslator<'a> {
         //Selector, selecting new value if condition is met and old value otherwise
         let selected_at_true = AtomTree::Not(
             AtomTree::Or(
-                AtomTree::Not(condition.clone().into()).into(), 
-                AtomTree::Not(select_if_true.into()).into()
+                vec![                
+                    AtomTree::Not(condition.clone().into()), 
+                    AtomTree::Not(select_if_true.into())
+                    ]
+
             ).into()
         );
         let selected_at_false = AtomTree::Not(
             AtomTree::Or(
-                condition.into(), 
-                AtomTree::Not(select_if_false.into()).into()
+                vec![
+                    condition, 
+                    AtomTree::Not(select_if_false.into())
+                ]
             ).into()
         );
-        let selected = AtomTree::Or(selected_at_true.into(), selected_at_false.into());
+        let selected = AtomTree::Or(vec![selected_at_true, selected_at_false]);
         selected
     }
 
@@ -228,7 +233,7 @@ impl<'a> AtomTreeTranslator<'a> {
     fn true_if_all_conditions_are_met(&self) -> AtomTree {
         let mut cur = AtomTree::AtomType { atom: AtomType::True };
         for condition in &self.condition_stack {
-            cur = AtomTree::Not(AtomTree::Or(AtomTree::Not(condition.to_owned().into()).into(), AtomTree::Not(cur.into()).into()).into());
+            cur = AtomTree::Not(AtomTree::Or(vec![AtomTree::Not(condition.to_owned().into()), AtomTree::Not(cur.into())]).into());
         }
         cur
     }
@@ -453,13 +458,10 @@ impl<'a> AtomTreeTranslator<'a> {
                         Some(ValueCollection::Single(AtomTree::Not(application.into())))
                     },
                     AtomSub::Or => {
-                        let (application_a, application_b) = match application {
+                        let applications = match application {
                             ValueCollection::Tuple(mut t) if t.len() == 2 => {
-                                (
-                                    //Or is commutative so order of inputs doesn't really matter
-                                    t.pop()?.get_as_atom_tree_if_single_or_error(self.compilation)?,
-                                    t.pop()?.get_as_atom_tree_if_single_or_error(self.compilation)?
-                                )
+                                t.into_iter().map(|v| v.get_as_atom_tree_if_single_or_error(self.compilation).unwrap_or_default()).collect()
+                                
                             },
                             
                             _ => {
@@ -467,7 +469,7 @@ impl<'a> AtomTreeTranslator<'a> {
                                 return None;
                             }
                         };
-                        Some(ValueCollection::Single(AtomTree::Or(application_a.into(), application_b.into())))
+                        Some(ValueCollection::Single(AtomTree::Or(applications)))
                     }
                 }
             }
