@@ -129,8 +129,6 @@ impl AtomRoot {
                     exclude_for_now.insert(*v);
                 }
                 AtomTree::AtomType { .. } => {
-                    inline_definitions.insert(*id, definition.definition.to_owned());
-                AtomTree::AtomType { atom } => {
                     inline_definitions.insert(AtomTree::Variable { id: *id }, definition.definition.to_owned());
                     
                 }
@@ -152,7 +150,7 @@ impl AtomRoot {
         true
     }
     
-    fn apply_to_all_trees_mut<F>(&mut self, predicate: F)
+    fn apply_to_all_trees_mut<F>(&mut self, mut predicate: F)
     where
         F: FnMut(&mut AtomTree)
     {
