@@ -23,6 +23,9 @@ static IGNORE_CHARS: phf::Set<char> = phf_set! {
 };
 
 static KEYWORD_MAPPING: phf::Map<&'static str, &'static TokenType> = phf_map! {
+    "import" => &TokenType::Keyword(Keyword::Import),
+
+    
     "problem" => &TokenType::Keyword(Keyword::Problem),
     "solution" => &TokenType::Keyword(Keyword::Solution),
 

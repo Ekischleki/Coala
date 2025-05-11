@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use crate::compiler::{block_parser::{Block, TokenBlock, TokenBlockType}, compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, syntax::{CodeSyntax, CollectionSyntax, CompositeTypeSyntax, ExpressionSyntax, FieldAssignSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypeSyntax, TypedIdentifierSyntax}, token::{Atom, Brace, Delimiter, Keyword, TokenType}, type_stream::TypeStream};
 
-use super::code_location::LocationValue;
+use super::{code_location::LocationValue, syntax::ImportSyntax};
 
 
 pub struct Parser<'a> {
-    //tokens: TypeStream<TokenBlock>,
-    compilation: &'a mut Compilation,
+    pub compilation: &'a mut Compilation,
+    pub imports: HashMap<ImportSyntax, bool>,
     pub composite_types: Vec<CompositeTypeSyntax>,
     pub problems: Vec<SubstructureSyntax>,
     pub collections: Vec<CollectionSyntax>,
@@ -24,8 +24,29 @@ impl<'a> Parser<'a> {
             problems: vec![],
             collections: vec![],
             supers: HashMap::default(),
-            solutions: HashMap::default()
+            solutions: HashMap::default(),
+            imports: HashMap::default()
         }
+    }
+
+    pub fn parse_import(&mut self, token_stream: &mut TypeStream<TokenBlock>) -> Option<ImportSyntax> {
+        token_stream.error_if_empty(self.compilation, "identifier")?;
+        let identifier = token_stream.next().into_identifier_or_error(self.compilation)?;
+
+        let mut path = vec![identifier];
+
+        while token_stream.peek().is_some_and(|f| f.token_type().is_double_colon()) {
+            token_stream.next();
+            token_stream.error_if_empty(self.compilation, "identifier")?;
+            let identifier = token_stream.next().into_identifier_or_error(self.compilation)?;
+            path.push(identifier);
+        }
+
+
+
+        return Some(ImportSyntax {
+            path,
+        })
     }
 
     pub fn parse_file(&mut self, token_stream: &mut TypeStream<TokenBlock>) {
@@ -33,6 +54,11 @@ impl<'a> Parser<'a> {
         while !token_stream.is_empty() {
             let current_token = token_stream.next();
             match current_token.token_type() {
+                TokenBlockType::Token(TokenType::Keyword(Keyword::Import)) => {
+                    if let Some(i) = self.parse_import(token_stream) {
+                        self.imports.entry(i).or_insert(false);
+                    }
+                }
                 TokenBlockType::Token(TokenType::Keyword(Keyword::Super)) => {
                      self.parse_super(token_stream);
                 }
@@ -69,7 +95,7 @@ impl<'a> Parser<'a> {
                 }
                 TokenBlockType::Token(TokenType::EOF) => return,
                 _ => {            
-                    self.compilation.add_error("Unexpected token at file level", Some(current_token.code_location().to_owned()));
+                    self.compilation.add_error(&format!("Unexpected token at file level: \"{:?}\"", current_token.token_type()), Some(current_token.code_location().to_owned()));
                 }
             }
         }

@@ -7,3 +7,4 @@ edition = "2021"
 enum-as-inner = "0.6.0"
 num-bigint = "0.4.6"
 phf = { version = "0.11.2", features = ["macros"] }
+rust-embed = "8.7.1"

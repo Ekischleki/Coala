@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{hash::{Hash, Hasher}, path::PathBuf};
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -51,11 +51,26 @@ impl CodeLocation {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct LocationValue<T> {
     pub location: Option<CodeLocation>,
     pub value: T
 } 
+
+impl<T: Eq> Eq for LocationValue<T> {}
+
+impl <T: Hash> Hash for LocationValue<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.value.hash(state);
+    }
+}
+
+impl<T: PartialEq> PartialEq for LocationValue<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
 
 impl<T> LocationValue<T> {
     pub fn new(location: Option<CodeLocation>, value: T) -> Self {
