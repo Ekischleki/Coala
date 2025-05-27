@@ -194,14 +194,19 @@ pub fn compile(settings: &Settings) {
         println!("{:#?}", atom_tree);
     }
     if settings.optimize {
+        println!("Optimizing, removing links...");
 
         while atom_tree.remove_links() {
             if settings.print_debug_logs {
                 println!("{:#?}", atom_tree);
             }
         }
-
+        let mut i = 0;
+        println!("Optimizing, simplifying {i}. run, {} definitions and {} value actions...", atom_tree.definitions.len(), atom_tree.value_actions.len());
+        i += 1;
         while atom_tree.simp_all(&mut compilation) {
+            println!("Optimizing, simplifying {i}. run, {} definitions and {} value actions...", atom_tree.definitions.len(), atom_tree.value_actions.len());
+
             if settings.print_debug_logs {
                 println!("{:#?}", atom_tree);
             }
@@ -210,6 +215,7 @@ pub fn compile(settings: &Settings) {
                     println!("{:#?}", atom_tree);
                 }
             }        
+            i += 1;
         }
         if settings.heavy_optimization {
             println!("Heavy optimization enabled, inlining all...");

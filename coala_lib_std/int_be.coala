@@ -3,17 +3,17 @@ import std::bit
 
 ## A composite integer type, containing a bit array and its length. 
 ## The first position of the bit array is the least significant bit (LSB), and the last position is the most significant bit (MSB).
-composite Int {
+composite IntBe {
     array: data,
     super_i: int_length
 }
 
 ## A collection of integer operations.
-collection int {
+collection int_be {
 
     ## Resizes the length of an integer. If the new length is smaller than the current length, the data is truncated by removing the most significant bits. If the new length is larger, the data is padded with zeros, such that the result is equivalent to the input.
-    sub resize(int: a, sup: size) {
-        let res = int::zero(size)
+    sub resize(int_be: a, sup: size) {
+        let res = int_be::zero(size)
         for (i in super::min(a.int_length, size)) {
             res.data[i] = a.data[i]
         }
@@ -21,27 +21,27 @@ collection int {
 
     ## Leftshift resize. Leftshits the integer by 1 bit. The new LSB is set to the fill_bit, and the MSB is moved to the new bit. Returns an integer one bigger than the input.
     ## Since the LSB is the first bit, this operation doesn't actually leftshift the bits, although it is called leftshift for convenience.
-    sub lfsr(int: a, bool: fill_bit) {
-        let res = int::zero(super::add(a.int_length, 1))
+    sub lfsr(int_be: a, bool: fill_bit) {
+        let res = int_be::zero(super::add(a.int_length, 1))
         res.data[0] = fill_bit
         for (i in a.int_length) {
-            res.data[super::add(i, 1)] = a.data[i]
+            res.data[i] = a.data[i]
         }
     } = res
 
     # Left shift. Leftshifts the integer by 1 bit. The new LSB is set to the fill_bit, and the MSB is removed.
-    sub lfs(int: a, bool: fill_bit) {
-        let res = int::zero(a.int_length)
+    sub lfs(int_be: a, bool: fill_bit) {
+        let res = int_be::zero(a.int_length)
         res.data[0] = fill_bit
         for (i in super::sb(a.int_length, 1)) {
-            res.data[super::add(i, 1)] = a.data[i]
+            res.data[i] = a.data[i]
         }
     } = res
 
     ## Creates an integer from a boolean array. The first position of the array is the least significant bit (LSB), and the last position is the most significant bit (MSB).
     sub from_array(array: data) {
         let int_length = super::len(data)
-    } = Int {
+    } = IntBe {
         data: data,
         int_length: int_length
     }
@@ -54,12 +54,12 @@ collection int {
             }
         }
 
-    } = int::add(a, b)
+    } = int_be::add(a, b)
 
     ## Returns zero of the given length.
     sub zero(sup: int_length) {
         let data = [false; int_length]
-    } = Int {
+    } = IntBe {
         data: data,
         int_length: int_length
     }
@@ -70,11 +70,12 @@ collection int {
         let i = 0
         for (i in int_length) {
             if (super::eq(super::mod(int, 2), 1)) {
-                data[i] = true
+                let j = super::sb(super::sb(int_length, i), 1)
+                data[j] = true
             }
             int = super::div(int, 2)
         }
-    } = Int {
+    } = IntBe {
         data: data,
         int_length: int_length
     }
@@ -82,12 +83,14 @@ collection int {
     ## Mutliply two integers. The result is the product of the two integers. The length of the result is the sum of the lengths of the two input integers.
     sub mul(int: a, int: b) {
         let res_size = super::add(a.int_length, b.int_length)
-        let cur = int::resize(a, res_size)
-        let res = int::zero(res_size)
+        let cur = int_be::resize(a, res_size)
+        let res = int_be::zero(res_size)
         for(i in b.int_length) {
-            let res = int::add_if_true(res, cur, b.data[i])
+            let j = super::sb(super::sb(b.int_length, i), 1)
 
-            let cur = int::lfs(cur, false)
+            let res = int_be::add_if_true(res, cur, b.data[j])
+
+            let cur = int_be::lfs(cur, false)
         }
     } = res
 
@@ -101,13 +104,15 @@ collection int {
         let carry = false
         let data = [false; a.int_length]
         for (i in a.int_length) {
-            let a_i = a.data[i]
-            let b_i = b.data[i]
+            let j = super::sb(super::sb(a.int_length, i), 1)
+
+            let a_i = a.data[j]
+            let b_i = b.data[j]
             let res = bit::full_adder(a_i, b_i, carry)
-            data[i] = res.data
+            data[j] = res.data
             carry = res.carry
         }
-    } = Int {
+    } = IntBe {
         data: data,
         int_length: a.int_length
     }
@@ -141,7 +146,7 @@ collection int {
             let b_i = b.data[i]
             data[i] = bool::and(a_i, b_i)
         }
-    } = Int {
+    } = IntBe {
         data: data,
         int_length: a.int_length
     }
@@ -159,7 +164,7 @@ collection int {
             let b_i = b.data[i]
             data[i] = or(a_i, b_i)
         }
-    } = Int {
+    } = IntBe {
         data: data,
         int_length: a.int_length
     }
@@ -175,7 +180,7 @@ collection int {
             let b_i = b.data[i]
             data[i] = bool::xor(a_i, b_i)
         }
-    } = Int {
+    } = IntBe {
         data: data,
         int_length: a.int_length
     }
@@ -186,31 +191,109 @@ collection int {
             let a_i = a.data[i]
             data[i] = not a_i
         }
-    } = Int {
+    } = IntBe {
         data: data,
         int_length: a.int_length
     }
 
-    sub right_rotate(Int: a, sup: n) {
-        let res = int::zero(a.int_length)
-        for (i in super::sb(a.int_length, n)) {
-            let j = super::add(i, n)
-            #output (i, j)
-            res.data[i] = a.data[j]
+    sub output_as_string(Int: a) {
+        if (not super::eq(super::mod(a.int_length, 4), 0)) {
+            output "Expected int_length % 4 == 0"
+            force true => false
         }
-        for (i in n) {
-            let j = super::sb(super::sb(a.int_length, i), 1)
-            #output (j, i)
-            res.data[j] = a.data[i]
+        output "0x"
+        let lnt = super::div(a.int_length, 4)
+        for (i in lnt) {
+            let i = super::mul(i, 4)
+            let j_0 = a.data[i]
+            let j_1 = a.data[super::add(i, 1)]
+            let j_2 = a.data[super::add(i, 2)]
+            let j_3 = a.data[super::add(i, 3)]
+
+            #Beware: Hell
+            if (j_0) {
+                if (j_1) {
+                    if (j_2) {
+                        if (j_3) {
+                            output "F"
+                        } else {
+                            output "E"
+                        }
+                    } else {
+                        if (j_3) {
+                            output "D"
+                        } else {
+                            output "C"
+                        }
+                    }
+                } else {
+                    if (j_2) {
+                        if (j_3) {
+                            output "B"
+                        } else {
+                            output "A"
+                        }
+                    } else {
+                        if (j_3) {
+                            output "9"
+                        } else {
+                            output "8"
+                        }
+                    }
+                }
+            } else {
+                if (j_1) {
+                    if (j_2) {
+                        if (j_3) {
+                            output "7"
+                        } else {
+                            output "6"
+                        }
+                    } else {
+                        if (j_3) {
+                            output "5"
+                        } else {
+                            output "4"
+                        }
+                    }
+                } else {
+                    if (j_2) {
+                        if (j_3) {
+                            output "3"
+                        } else {
+                            output "2"
+                        }
+                    } else {
+                        if (j_3) {
+                            output "1"
+                        } else {
+                            output "0"
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    sub right_rotate(Int: a, sup: n) {
+
+        let res = int_be::zero(a.int_length)
+
+        #Rotate the bits
+        let add = super::sb(a.int_length, n)
+        for (i in a.int_length) {
+            let j = super::mod(super::add(i, add), a.int_length)
+            #output (i, j, a.data[j])
+            res.data[i] = a.data[j]
         }
     } = res
 
     sub right_shift(Int: a, sup: n) {
-        let res = int::zero(a.int_length)
+        let res = int_be::zero(a.int_length)
         for (i in super::sb(a.int_length, n)) {
             let j = super::add(i, n)
             #output (i, j)
-            res.data[i] = a.data[j]
+            res.data[j] = a.data[i]
         }
     } = res
     

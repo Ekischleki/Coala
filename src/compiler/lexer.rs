@@ -1,4 +1,5 @@
 
+use core::num;
 use std::path::PathBuf;
 
 use phf::{phf_map, phf_set};
@@ -180,7 +181,7 @@ fn read_number(file_reader: &mut dyn FileReader, current_file: &PathBuf) -> Resu
     let start_char = file_reader.get_position();
     let mut number = String::new();
     let mut number_char = file_reader.read_char().expect("Unintended file reading error.");
-    while number_char.is_ascii_digit() {
+    while number_char.is_ascii_alphanumeric() {
         if IGNORE_CHARS.contains(&number_char) {
             break;
         }
@@ -197,7 +198,15 @@ fn read_number(file_reader: &mut dyn FileReader, current_file: &PathBuf) -> Resu
     }
     file_reader.set_position(file_reader.get_position() - 1); //This should in theory not cause an underflow exception
 
-    let parsed_int = number.parse();
+
+    let parsed_int = if number.starts_with("0x") {
+        usize::from_str_radix(&number[2..], 16)
+    } else if number.starts_with("0b") {
+        usize::from_str_radix(&number[2..], 2)
+    } else {
+        number.parse()
+    };
+
     let location = CodeLocation::with_section(
         current_file.to_owned(),
         start_char,

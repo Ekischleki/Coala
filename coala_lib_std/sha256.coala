@@ -1,0 +1,137 @@
+import std::int_be
+
+collection sha256 {
+
+    sub pad_input(array: input) {
+        let l = super::len(input)
+        let k = super::sb(512, super::mod(super::add(l, 65), 512))
+        let L = int_be::from_super(l, 64)
+        let padded_input = [false; super::add(65, super::add(l, k))]
+        for (i in l) {
+            padded_input[i] = input[i]
+        }
+        padded_input[l] = true
+        for(i in k) {
+            padded_input[super::add(super::add(l, i), 1)] = false
+        }
+        let base = super::add(super::add(l, k), 1)
+
+        for (i in 64) {
+            padded_input[super::add(base, i)] = L.data[super::sb(63, i)]
+        }
+    } = padded_input
+    
+    sub create_message_schedule(array: input) {
+        if (not super::eq(super::len(input), 512)) {
+            output "Error: Input must be 512 bits"
+            force false => true
+        }
+
+        let w = [int_be::zero(32); 64]
+
+        for (i in 16) {
+            for (j in 32) {
+                w[i].data[j] = input[super::add(super::mul(i, 32), j)]
+                
+            }
+        }
+
+        for (i in 48) {
+
+            let ni = super::add(i, 16)
+
+            let i0 = super::sb(ni, 15)
+            let a0 = w[i0]
+
+            let s0 = int_be::xor(int_be::xor(int_be::right_rotate(a0, 7), int_be::right_rotate(a0, 18)), int_be::right_shift(a0, 3))
+
+            
+            let i1 = super::sb(ni, 2)
+            let a1 = w[i1]
+
+            let s1 = int_be::xor(int_be::xor(int_be::right_rotate(a1, 17), int_be::right_rotate(a1, 19)), int_be::right_shift(a1, 10))
+
+            let j0 = super::sb(ni, 16)
+            let j1 = super::sb(ni, 7)
+            let b0 = w[j0]
+            let b1 = w[j1]
+
+            w[ni] = int_be::add(int_be::add(b0, s0), int_be::add(b1, s1))
+            output ni
+            int_be::output_as_string(w[ni])
+        }
+    } = w
+
+    ## SHA256 hash function. Takes a string and returns a 256 bit hash.
+    sub sha256(array: input) {
+        ##Todo, make these big endian
+        let h0 = int_be::from_super(0x6a09e667, 32)
+        let h1 = int_be::from_super(0xbb67ae85, 32)
+        let h2 = int_be::from_super(0x3c6ef372, 32)
+        let h3 = int_be::from_super(0xa54ff53a, 32)
+        let h4 = int_be::from_super(0x510e527f, 32)
+        let h5 = int_be::from_super(0x9b05688c, 32)
+        let h6 = int_be::from_super(0x1f83d9ab, 32)
+        let h7 = int_be::from_super(0x5be0cd19, 32)
+        let k = [
+            int_be::from_super(0x428a2f98, 32), int_be::from_super(0x71374491, 32), int_be::from_super(0xb5c0fbcf, 32), int_be::from_super(0xe9b5dba5, 32), int_be::from_super(0x3956c25b, 32), int_be::from_super(0x59f111f1, 32), int_be::from_super(0x923f82a4, 32), int_be::from_super(0xab1c5ed5, 32),
+            int_be::from_super(0xd807aa98, 32), int_be::from_super(0x12835b01, 32), int_be::from_super(0x243185be, 32), int_be::from_super(0x550c7dc3, 32), int_be::from_super(0x72be5d74, 32), int_be::from_super(0x80deb1fe, 32), int_be::from_super(0x9bdc06a7, 32), int_be::from_super(0xc19bf174, 32),
+            int_be::from_super(0xe49b69c1, 32), int_be::from_super(0xefbe4786, 32), int_be::from_super(0x0fc19dc6, 32), int_be::from_super(0x240ca1cc, 32), int_be::from_super(0x2de92c6f, 32), int_be::from_super(0x4a7484aa, 32), int_be::from_super(0x5cb0a9dc, 32), int_be::from_super(0x76f988da, 32),
+            int_be::from_super(0x983e5152, 32), int_be::from_super(0xa831c66d, 32), int_be::from_super(0xb00327c8, 32), int_be::from_super(0xbf597fc7, 32), int_be::from_super(0xc6e00bf3, 32), int_be::from_super(0xd5a79147, 32), int_be::from_super(0x06ca6351, 32), int_be::from_super(0x14292967, 32),
+            int_be::from_super(0x27b70a85, 32), int_be::from_super(0x2e1b2138, 32), int_be::from_super(0x4d2c6dfc, 32), int_be::from_super(0x53380d13, 32), int_be::from_super(0x650a7354, 32), int_be::from_super(0x766a0abb, 32), int_be::from_super(0x81c2c92e, 32), int_be::from_super(0x92722c85, 32),
+            int_be::from_super(0xa2bfe8a1, 32), int_be::from_super(0xa81a664b, 32), int_be::from_super(0xc24b8b70, 32), int_be::from_super(0xc76c51a3, 32), int_be::from_super(0xd192e819, 32), int_be::from_super(0xd6990624, 32), int_be::from_super(0xf40e3585, 32), int_be::from_super(0x106aa070, 32),
+            int_be::from_super(0x19a4c116, 32), int_be::from_super(0x1e376c08, 32), int_be::from_super(0x2748774c, 32), int_be::from_super(0x34b0bcb5, 32), int_be::from_super(0x391c0cb3, 32), int_be::from_super(0x4ed8aa4a, 32), int_be::from_super(0x5b9cca4f, 32), int_be::from_super(0x682e6ff3, 32),
+            int_be::from_super(0x748f82ee, 32), int_be::from_super(0x78a5636f, 32), int_be::from_super(0x84c87814, 32), int_be::from_super(0x8cc70208, 32), int_be::from_super(0x90befffa, 32), int_be::from_super(0xa4506ceb, 32), int_be::from_super(0xbef9a3f7, 32), int_be::from_super(0xc67178f2, 32)
+        ]
+
+        let padded_input = sha256::pad_input(input)
+        for (i in super::div(super::len(padded_input), 512)) {
+
+            let chunk = [false; 512]
+            for (j in 512) {
+                chunk[j] = padded_input[super::add(super::mul(i, 512), j)]
+            }
+
+            let w = sha256::create_message_schedule(chunk)
+
+            let a = h0
+            let b = h1
+            let c = h2
+            let d = h3
+            let e = h4
+            let f = h5
+            let g = h6
+            let h = h7
+
+            for (j in 64) {
+                let s1 = int_be::xor(int_be::xor(int_be::right_rotate(e, 6), int_be::right_rotate(e, 11)), int_be::right_rotate(e, 25))
+                let ch = int_be::xor(int_be::and(e, f), int_be::and(int_be::nt(e), g))
+                let temp1 = int_be::add(int_be::add(int_be::add(int_be::add(h, s1), ch), k[j]), w[j])
+                let s0 = int_be::xor(int_be::xor(int_be::right_rotate(a, 2), int_be::right_rotate(a, 13)), int_be::right_rotate(a, 22))
+                let maj = int_be::xor(int_be::xor(int_be::and(a, b), int_be::and(a, c)), int_be::and(b, c))
+                let temp2 = int_be::add(s0, maj)
+
+                h = g
+                g = f
+                f = e
+                e = int_be::add(d, temp1)
+                d = c
+                c = b
+                b = a 
+                a = int_be::add(temp1, temp2)
+            }
+
+            h0 = int_be::add(h0, a)
+            h1 = int_be::add(h1, b)
+            h2 = int_be::add(h2, c)
+            h3 = int_be::add(h3, d)
+            h4 = int_be::add(h4, e)
+            h5 = int_be::add(h5, f)
+            h6 = int_be::add(h6, g)
+            h7 = int_be::add(h7, h)
+        }
+            
+        
+    } = [h0, h1, h2, h3, h4, h5, h6, h7]
+}
+

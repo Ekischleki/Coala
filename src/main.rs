@@ -19,6 +19,9 @@ fn parse_args() -> Settings {
                 settings.output_code_logs = false;
                 settings.optimize = true;
             }
+            "--heavy" => {
+                settings.heavy_optimization = true;
+            }
             "-p" => {
                 settings.base_path = args.next();
             }
@@ -39,8 +42,8 @@ fn main() {
     let settings = if args().count() == 1 {
         Settings {
             ignore_errors: false,
-            optimize: true,
-            output_code_logs: false,
+            optimize: false,
+            output_code_logs: true,
             print_debug_logs: false,
             heavy_optimization: false,
             base_path: Some("./".into()),
