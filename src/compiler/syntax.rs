@@ -1,10 +1,25 @@
-use std::{hash::Hash, ops::Sub};
+use std::{collections::HashMap, hash::Hash, ops::Sub};
 
 use enum_as_inner::EnumAsInner;
 
 use crate::compiler::token::{AtomSub, AtomType};
 
 use super::code_location::{CodeLocation, LocationValue};
+
+#[derive(Debug, Default)]
+pub struct Project {
+    pub composite_types: Vec<CompositeTypeSyntax>,
+    pub problems: Vec<SubstructureSyntax>,
+    pub collections: Vec<CollectionSyntax>,
+    pub solutions: HashMap<String, SubCallSyntax>,
+    pub supers: HashMap<String, usize>
+}
+
+impl Project {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
 
 #[derive(Default, Debug)]
 pub struct CollectionSyntax {
@@ -75,6 +90,10 @@ pub enum TypeSyntax {
     },
     Composite {
         name: LocationValue<String>,
+    },
+    Array {
+        t: Box<TypeSyntax>,
+        size: ExpressionSyntax
     }
 }
 

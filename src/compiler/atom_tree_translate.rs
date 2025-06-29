@@ -317,6 +317,20 @@ impl<'a> AtomTreeTranslator<'a> {
                 };
                 //println!("Application: {:#?}", application);
                 match name.value.as_str() {
+                    "seed" => {
+                        if application.len() == 1 {
+                            match application.pop()? {
+                                ValueCollection::Single(AtomTree::AtomType { atom }) => Some(ValueCollection::Single(AtomTree::SeedLabel(if atom.is_true() {Label::True} else {Label::False}))),
+                                _ =>  {
+                                    self.compilation.add_error("Invalid argument type", None);
+                                    None
+                                }
+                            }
+                        } else {
+                            self.compilation.add_error("Incorrect parameters for seed function. Expected atom type.", call_location);
+                            None
+                        }
+                    }
                     "add" => {
                         if application.len() == 2 {
                             let a = application.pop()?.get_as_int_or_error(self.compilation)?;
@@ -664,6 +678,15 @@ impl ValueCollection {
             Self::Super(SuperValue::Int(i)) => Some(i),
             _ => {
                 compilation.add_error("Expected super integer value", None);
+                None
+            }
+        }
+    }
+    pub fn get_as_atom_type_or_error(self, compilation: &mut Compilation) -> Option<AtomType> {
+        match self {
+            Self::Single(AtomTree::AtomType { atom }) => Some(atom),
+            _ => {
+                compilation.add_error("Expected atom type value", None);
                 None
             }
         }

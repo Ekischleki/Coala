@@ -2,17 +2,13 @@ use std::collections::HashMap;
 
 use crate::compiler::{block_parser::{Block, TokenBlock, TokenBlockType}, compilation::Compilation, diagnostic::{Diagnostic, DiagnosticPipelineLocation, DiagnosticType}, syntax::{CodeSyntax, CollectionSyntax, CompositeTypeSyntax, ExpressionSyntax, FieldAssignSyntax, SubCallSyntax, SubLocation, SubstructureSyntax, TypeSyntax, TypedIdentifierSyntax}, token::{Atom, Brace, Delimiter, Keyword, TokenType}, type_stream::TypeStream};
 
-use super::{code_location::LocationValue, syntax::ImportSyntax};
+use super::{code_location::LocationValue, syntax::{ImportSyntax, Project}};
 
 
 pub struct Parser<'a> {
     pub compilation: &'a mut Compilation,
     pub imports: HashMap<ImportSyntax, bool>,
-    pub composite_types: Vec<CompositeTypeSyntax>,
-    pub problems: Vec<SubstructureSyntax>,
-    pub collections: Vec<CollectionSyntax>,
-    pub solutions: HashMap<String, SubCallSyntax>,
-    pub supers: HashMap<String, usize>
+    pub project: Project,
 }
 
 
@@ -20,11 +16,7 @@ impl<'a> Parser<'a> {
     pub fn new(compilation: &'a mut Compilation) -> Self {
         Self {
             compilation,
-            composite_types: vec![],
-            problems: vec![],
-            collections: vec![],
-            supers: HashMap::default(),
-            solutions: HashMap::default(),
+            project: Project::new(),
             imports: HashMap::default()
         }
     }
@@ -76,7 +68,7 @@ impl<'a> Parser<'a> {
                 TokenBlockType::Token(TokenType::Keyword(Keyword::Collection)) => {
 
                     if let Some(c) = self.parse_collection(token_stream) {
-                        self.collections.push(c);
+                        self.project.collections.push(c);
                     }
                 }
                 TokenBlockType::Token(TokenType::Keyword(Keyword::Problem)) => {
@@ -111,7 +103,7 @@ impl<'a> Parser<'a> {
 
         let fields = self.parse_typed_identifiers(composite_body)?;
 
-        self.composite_types.push(CompositeTypeSyntax { name: identifier, fields });
+        self.project.composite_types.push(CompositeTypeSyntax { name: identifier, fields });
 
 
         Some(())
@@ -123,18 +115,18 @@ impl<'a> Parser<'a> {
         token_stream.next().assert_is_delimiter_or_error(self.compilation, Delimiter::Equals);
         let int = token_stream.next().into_integer_or_error(self.compilation)?;
 
-        if self.supers.contains_key(&identifier.value) {
+        if self.project.supers.contains_key(&identifier.value) {
             self.compilation.add_error("The name of this super is already in use", Some(identifier_location));
             return None;
         }
-        self.supers.insert(identifier.value, int.value);
+        self.project.supers.insert(identifier.value, int.value);
 
         Some(())
     }
     fn parse_problem(&mut self, block: Block) {
         let mut problems = vec![];
         self.parse_sub_collection(block,&mut problems);
-        self.problems.append(&mut problems);
+        self.project.problems.append(&mut problems);
     }
 
     fn parse_collection(&mut self, token_stream: &mut TypeStream<TokenBlock>) -> Option<CollectionSyntax> {
@@ -172,7 +164,7 @@ impl<'a> Parser<'a> {
                 None => continue
             };
 
-            self.solutions.insert(function_name.value.to_owned(), SubCallSyntax { location: SubLocation::Structure { collection: LocationValue::default(), sub: function_name }, application: Some(application) });
+            self.project.solutions.insert(function_name.value.to_owned(), SubCallSyntax { location: SubLocation::Structure { collection: LocationValue::default(), sub: function_name }, application: Some(application) });
             
             if token_stream.is_empty() {
                 break;

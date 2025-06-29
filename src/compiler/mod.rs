@@ -27,6 +27,9 @@ mod atom_tree_translate;
 mod atom_tree_to_graph;
 mod block_parser;
 mod lib_embed;
+pub mod typecheck;
+pub mod scope;
+pub mod atom_tree_to_expr;
 
 
 
@@ -169,18 +172,9 @@ pub fn compile(settings: &Settings) {
         parse_file(&file, false, &mut file_reader, &mut parser, settings);
     }
 
-    let collections = parser.collections;
-    
-    let problems = parser.problems;
-    
-    let solutions = parser.solutions;
-    
-    let composites = parser.composite_types;
+    let project = parser.project;
     if settings.print_debug_logs {
-        println!("Collections: {:#?}", collections);
-        println!("Problems: {:#?}", problems);
-        println!("Solutions: {:#?}", solutions);
-        println!("Composites: {:#?}", composites);
+        println!("Project: {:#?}", project);
     }
 
     if !(settings.ignore_errors || compilation.is_error_free()) {
@@ -188,8 +182,8 @@ pub fn compile(settings: &Settings) {
         return;
     }
     println!("Compiling project to IR...");
-    let atom_tree_translator = AtomTreeTranslator::new(&mut compilation, collections, composites);
-    let mut atom_tree = atom_tree_translator.convert(problems, solutions);
+    let atom_tree_translator = AtomTreeTranslator::new(&mut compilation, project.collections, project.composite_types);
+    let mut atom_tree = atom_tree_translator.convert(project.problems, project.solutions);
     if settings.print_debug_logs {
         println!("{:#?}", atom_tree);
     }
