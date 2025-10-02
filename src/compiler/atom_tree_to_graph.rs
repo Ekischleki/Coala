@@ -3,35 +3,72 @@ Emulates and compiles an AtomTree consisting of abstract logic gates into an act
 */
 
 
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, fs::File, io::Write};
 
 use enum_as_inner::EnumAsInner;
 
-use crate::compiler::{atom_tree::{AtomRoot, AtomTree, ValueAction}, token::AtomType};
+use crate::compiler::{atom_tree::{AtomRoot, AtomTree, ValueAction}, compiler_backend::CompilerBackend, export, token::AtomType};
 
-pub struct AtomTreeCompiler {
+pub struct GraphColoringBackend {
     true_node: usize,
     false_node: usize,
     neutral_node: usize,
-    tree: AtomRoot,
+    tree: Option<AtomRoot>,
     nodes: Vec<Node>,
     //Maps a variable id in the Atom tree to its corrosponding node.
     variable_mappings: HashMap<usize, usize>
 }
-impl AtomTreeCompiler {
-    pub fn new(tree: AtomRoot) -> Self {
+
+impl CompilerBackend for GraphColoringBackend {
+    fn init(&mut self, im: AtomRoot) -> Result<(), String> {
+        self.tree = Some(im);
+        Ok(())
+    }
+
+    fn emit(self, mut base: std::path::PathBuf) -> Result<(), String> {
+        let nodes = self.compile()?;
+        println!("Exporting compilation results...");
+
+        let mut buf_edges = String::new();
+        let mut buf_labels = String::new();
+
+        export::export_as_csv(&nodes, &mut buf_edges, &mut buf_labels);
+
+        base.push("c_graph");
+        let mut edges = base.clone();
+        edges.push("edges.csv");
+        let mut labels = base;
+        labels.push("labels.csv");
+        File::create(edges).map_err(|e| format!("{e}"))?.write(buf_edges.as_bytes()).map_err(|e| format!("{e}"))?;
+        File::create(labels).map_err(|e| format!("{e}"))?.write(buf_edges.as_bytes()).map_err(|e| format!("{e}"))?;
+        Ok(())
+    }
+    
+    fn check_settings(&mut self, settings: super::settings::Settings) -> Result<(), String> {
+        Ok(())
+    }
+    
+    fn make_ir_pipeline(&self, pipeline_builder: &mut super::pipeline_builder::IRPipelineBuilder) {
+        pipeline_builder
+        .optimize_simp(false)
+        .inline_vars(false)
+        .outline_expr();
+    }
+}
+
+impl GraphColoringBackend {
+    pub fn new() -> Self {
         Self {
             true_node: 0,
             false_node: 0,
             neutral_node: 0,
             nodes: vec![],
             variable_mappings: HashMap::new(),
-
-            tree
+            tree: None
         }
     }
 
-    pub fn compile(mut self) -> Vec<Node> {
+    pub fn compile(mut self) -> Result<Vec<Node>, String> {
 
         
         let true_node = Node::new(&mut self, Label::True);
@@ -47,7 +84,7 @@ impl AtomTreeCompiler {
         self.neutral_node = neutral_node;
 
 
-        for (atom_tree, action) in self.tree.value_actions.drain(..).collect::<Vec<_>>() {
+        for (atom_tree, action) in self.tree.as_mut().ok_or(format!("Tree was None, perhaps the backend hasn't been initialized yet."))?.value_actions.drain(..).collect::<Vec<_>>() {
             match action {
                 ValueAction::Restriction(r) => {
                     let node = self.compile_tree(&atom_tree);
@@ -82,11 +119,11 @@ impl AtomTreeCompiler {
             Node::connect_with_whitelist(i, &mut self);
         }
 
-        self.nodes
+        Ok(self.nodes)
 
     }
     fn compile_var(&mut self, var_id: usize) -> usize {
-        let definition = &*self.tree.definitions.remove(&var_id).expect("Probably a selfreferential varialbe (shouldn't happen)").definition;
+        let definition = &*self.tree.as_mut().expect("Tree was none").definitions.remove(&var_id).expect("Probably a selfreferential varialbe (shouldn't happen)").definition;
         match definition {
             AtomTree::SeedLabel(l) => {
                 let var_node = Node::new(self, *l);
@@ -187,7 +224,7 @@ impl AtomTreeCompiler {
 
                 inverted_node
             }
-            AtomTree::Or(v) => {
+            AtomTree::Op(v) => {
                 let mut v = v.iter().map(|i| self.compile_tree(i)).collect::<Vec<_>>().into_iter();
                 let a = v.next().expect("Expected at least two element in or operation");
                 let b = v.next().expect("Expected at least two elements in or operation");
@@ -215,18 +252,18 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn new(compiler: &mut AtomTreeCompiler, label: Label) -> usize {
+    pub fn new(compiler: &mut GraphColoringBackend, label: Label) -> usize {
         compiler.nodes.push(Node { connections: vec![], label, label_whitelist: Label::ALL_LABELS.iter().map(|i| *i).collect() });
         return compiler.nodes.len() - 1;
     }
-    pub fn force_bool(v: usize, compiler: &mut AtomTreeCompiler) {
+    pub fn force_bool(v: usize, compiler: &mut GraphColoringBackend) {
         Self::force_whitelist(v, compiler, vec![Label::True, Label::False]);
     }
-    pub fn force_bool_plus_neutral(v: usize, compiler: &mut AtomTreeCompiler) {
+    pub fn force_bool_plus_neutral(v: usize, compiler: &mut GraphColoringBackend) {
         Self::force_whitelist(v, compiler, vec![Label::True, Label::False, Label::Neutral]);
 
     }
-    pub fn force_whitelist(v: usize, compiler: &mut AtomTreeCompiler, whitelist: Vec<Label>) {
+    pub fn force_whitelist(v: usize, compiler: &mut GraphColoringBackend, whitelist: Vec<Label>) {
         let node_whitelist = &mut compiler.nodes[v].label_whitelist;
         //println!("Node whitelist: {:#?}\nRequested: {:#?}", node_whitelist, whitelist);
         let mut union = HashSet::new();
@@ -240,7 +277,7 @@ impl Node {
         }
         *node_whitelist = union;
     }
-    pub fn connect_with_whitelist(v: usize, compiler: &mut AtomTreeCompiler) {
+    pub fn connect_with_whitelist(v: usize, compiler: &mut GraphColoringBackend) {
         let node_whitelist = &compiler.nodes[v].label_whitelist;
 
         let connect_labels = Label::ALL_LABELS
@@ -258,7 +295,7 @@ impl Node {
         
 
     }
-    pub fn connect(a: usize, b: usize, compiler: &mut AtomTreeCompiler) {
+    pub fn connect(a: usize, b: usize, compiler: &mut GraphColoringBackend) {
         compiler.nodes[a].connections.push(b.clone());
         compiler.nodes[b].connections.push(a.clone());
         if  compiler.nodes[a].label == Label::Null {

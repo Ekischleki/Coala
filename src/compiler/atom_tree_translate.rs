@@ -79,10 +79,10 @@ impl<'a> AtomTreeTranslator<'a> {
         for condition in &self.condition_stack {
             match t {
                 AtomType::True => {
-                    value = AtomTree::Or(vec![value, AtomTree::Not(condition.to_owned().into())])
+                    value = AtomTree::Op(vec![value, AtomTree::Not(condition.to_owned().into())])
                 }
                 AtomType::False => {
-                    value = AtomTree::Not(AtomTree::Or(vec![AtomTree::Not(value.into()), AtomTree::Not(condition.to_owned().into())]).into());
+                    value = AtomTree::Not(AtomTree::Op(vec![AtomTree::Not(value.into()), AtomTree::Not(condition.to_owned().into())]).into());
                 }
             }
         }
@@ -126,7 +126,7 @@ impl<'a> AtomTreeTranslator<'a> {
     pub fn select_if_conditions_met(select_if_true: AtomTree, select_if_false: AtomTree, condition: AtomTree) -> AtomTree {
         //Selector, selecting new value if condition is met and old value otherwise
         let selected_at_true = AtomTree::Not(
-            AtomTree::Or(
+            AtomTree::Op(
                 vec![                
                     AtomTree::Not(condition.clone().into()), 
                     AtomTree::Not(select_if_true.into())
@@ -135,14 +135,14 @@ impl<'a> AtomTreeTranslator<'a> {
             ).into()
         );
         let selected_at_false = AtomTree::Not(
-            AtomTree::Or(
+            AtomTree::Op(
                 vec![
                     condition, 
                     AtomTree::Not(select_if_false.into())
                 ]
             ).into()
         );
-        let selected = AtomTree::Or(vec![selected_at_true, selected_at_false]);
+        let selected = AtomTree::Op(vec![selected_at_true, selected_at_false]);
         selected
     }
 
@@ -224,6 +224,12 @@ impl<'a> AtomTreeTranslator<'a> {
                     let condition = self.true_if_all_conditions_are_met();
                     self.atom_tree.value_actions.push((condition, ValueAction::Output(string_buffer, value_buffer)));
                 }
+                CodeSyntax::Partial { expression } => {
+                    let value = self.compile_expression(expression, variables)?;
+
+                    self.atom_tree.value_actions.push((value.get_as_atom_tree_if_single_or_error(compilation)?, ValueAction::PartialOut));
+                
+                }
                 _ => {todo!()}
             }
         }
@@ -233,7 +239,7 @@ impl<'a> AtomTreeTranslator<'a> {
     fn true_if_all_conditions_are_met(&self) -> AtomTree {
         let mut cur = AtomTree::AtomType { atom: AtomType::True };
         for condition in &self.condition_stack {
-            cur = AtomTree::Not(AtomTree::Or(vec![AtomTree::Not(condition.to_owned().into()), AtomTree::Not(cur.into())]).into());
+            cur = AtomTree::Not(AtomTree::Op(vec![AtomTree::Not(condition.to_owned().into()), AtomTree::Not(cur.into())]).into());
         }
         cur
     }
@@ -514,7 +520,7 @@ impl<'a> AtomTreeTranslator<'a> {
                                 return None;
                             }
                         };
-                        Some(ValueCollection::Single(AtomTree::Or(applications)))
+                        Some(ValueCollection::Single(AtomTree::Op(applications)))
                     }
                 }
             }

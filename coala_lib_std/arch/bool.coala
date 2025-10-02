@@ -1,0 +1,22 @@
+composite bool {
+    #Compiler built in based on architecture
+}
+
+#Set of compiler built in boolean operations
+collection bool {
+
+    sub t() {}
+    sub f() {}
+
+    sub not(bool: a) {}
+    sub ident(bool: a) {}
+
+    sub on(bool: a, bool: b)
+    sub nand(bool: a, bool: b) {}
+    sub nor(bool: a, bool: b) {}
+    sub or(bool: a, bool: b) {}
+    sub and(bool: a, bool: b) {}
+    sub xor(bool: a, bool: b) {}
+    sub xnor(bool: a, bool: b) {}
+}
+

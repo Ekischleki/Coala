@@ -14,7 +14,8 @@ pub struct AtomRoot {
 #[derive(Debug, Clone)]
 pub enum ValueAction {
     Output(Vec<String>, Vec<AtomTree>),
-    Restriction(AtomType)
+    Restriction(AtomType),
+    PartialOut
 }
 
 impl AtomRoot {
@@ -49,7 +50,7 @@ impl AtomRoot {
                         *value = *(a).clone();
                     }
 
-                    AtomTree::Or(s) if t.is_false() => {
+                    AtomTree::Op(s) if t.is_false() => {
                         *changed = true;
                         remove_indecies.push(i);
                         for a in s {
@@ -84,15 +85,25 @@ impl AtomRoot {
         });
     }
 
-    pub fn simp_all(&mut self, compilation: &mut Compilation) -> bool {
+    pub fn simp_all(&mut self, compilation: &mut Compilation, dont_simp_op: bool) -> bool {
         let mut changed = false;
         self.simp_force(compilation, &mut changed);
         //println!("Simp force: {:#?}", self);
         self.apply_to_all_trees(|t| {
-            t.simp_rec(&mut changed)
+            t.simp_rec(&mut changed, dont_simp_op)
         });
 
         return changed;
+    }
+    pub fn or_to_and(&mut self) {
+        self.apply_to_all_trees(|t| {
+            t.or_to_and().simp_rec(&mut false, true)
+        });
+    }
+    pub fn simp_double_not(&mut self) {
+        self.apply_to_all_trees(|t| {
+            t.simp_double_not()
+        });
     }
     pub fn outline_common_expressions(&mut self) {
         let mut outlined = HashMap::new();
@@ -210,7 +221,7 @@ pub enum AtomTree {
     Not(
        Box<AtomTree> 
     ),
-    Or (
+    Op (
         Vec<AtomTree>
     )
     
@@ -221,7 +232,7 @@ impl Hash for AtomTree {
             Self::Variable { id } => id.hash(state),
             Self::AtomType { atom } => atom.hash(state),
             Self::Not(a) => a.hash(state),
-            Self::Or(v) => {
+            Self::Op(v) => {
                 //Hash the vector in a way that is not order dependent
                 let mut hash = 0;
                 for a in v {
@@ -245,7 +256,7 @@ impl PartialEq for AtomTree {
             (Self::Variable { id: a }, Self::Variable { id: b }) => a == b,
             (Self::AtomType { atom: a }, Self::AtomType { atom: b }) => a == b,
             (Self::Not(a), Self::Not(b)) => a == b,
-            (Self::Or(a), Self::Or(b)) => {
+            (Self::Op(a), Self::Op(b)) => {
                 //Check of the two vectors are equal, regardless of order
                 if a.len() != b.len() {
                     return false;
@@ -274,7 +285,7 @@ impl AtomTree {
                 return;
             }
             Self::Not(a) => {a.outline_common_expressions(outlined, var_count);},
-            Self::Or(v) => {v.iter_mut().for_each(|f| f.outline_common_expressions(outlined, var_count))},
+            Self::Op(v) => {v.iter_mut().for_each(|f| f.outline_common_expressions(outlined, var_count))},
             _ => {}
         }
         if let Some(id) = outlined.get(self) {
@@ -310,8 +321,20 @@ impl AtomTree {
                 }
             },
             Self::Not(a) => {a.inline_all(new_definitions, definitions);},
-            Self::Or(v) => {v.iter_mut().for_each(|f| f.inline_all(new_definitions, definitions))},
+            Self::Op(v) => {v.iter_mut().for_each(|f| f.inline_all(new_definitions, definitions))},
             _ => {}
+        }
+    }
+
+    pub fn or_to_and(self) -> Self {
+        match self {
+            Self::Not(n) => Self::Not(Box::new(n.or_to_and())),
+            Self::Op(o) => {
+                let o: Vec<_> = o.into_iter().map(|e| Self::Not(Box::new(e.or_to_and()))).collect();
+                Self::Not(Box::new(Self::Op(o)))
+            }
+
+            _ => self
         }
     }
 
@@ -319,7 +342,7 @@ impl AtomTree {
         match self {
             Self::Variable { id } => {*counter.entry(*id).or_insert(0) += 1;},
             Self::Not(a) => {a.count_var_use(counter);},
-            Self::Or(v) => {v.iter().for_each(|f| f.count_var_use(counter))},
+            Self::Op(v) => {v.iter().for_each(|f| f.count_var_use(counter))},
             _ => {}
         }
     }
@@ -331,14 +354,14 @@ impl AtomTree {
             }
 
             Self::Not(a) => {a.remove_marker();},
-            Self::Or(v) => {v.iter_mut().for_each(|f| f.remove_marker());},
+            Self::Op(v) => {v.iter_mut().for_each(|f| f.remove_marker());},
             _ => {}
         }
     }
     fn inline_var(&mut self, inline_definitions: &HashMap<AtomTree, Box<AtomTree>>) {
         match self {
             Self::Not(a) => {a.inline_var(inline_definitions);},
-            Self::Or(v) => {v.iter_mut().for_each(|f| f.inline_var(inline_definitions))},
+            Self::Op(v) => {v.iter_mut().for_each(|f| f.inline_var(inline_definitions))},
             _ => {}
         }
         if let Some(v) = inline_definitions.get(self) {
@@ -347,17 +370,17 @@ impl AtomTree {
         }
         
     }
-    pub fn simp_rec(self, changed: &mut bool) -> Self {
+    pub fn simp_rec(self, changed: &mut bool, dont_simp_op: bool) -> Self {
         let mut simp_children = match self {
-            Self::Not(a) => Self::Not(a.simp_rec(changed).into()),
-            Self::Or(v) => Self::Or(v.into_iter().map(|a| a.simp_rec(changed)).collect()),
+            Self::Not(a) => Self::Not(a.simp_rec(changed, dont_simp_op).into()),
+            Self::Op(v) => Self::Op(v.into_iter().map(|a| a.simp_rec(changed, dont_simp_op)).collect()),
             _ => self
         };
         loop {
             let simplified;
 
             //println!("Simp before: {:#?}", simp_children);
-            (simplified, simp_children) = simp_children.simp();
+            (simplified, simp_children) = simp_children.simp(dont_simp_op);
             //println!("Simp loop: {:#?}", simp_children);
             if !simplified {
                 break;
@@ -369,7 +392,23 @@ impl AtomTree {
     pub fn simp_multi_or(children: &mut Vec<AtomTree>) -> bool {
         todo!()
     }
-    pub fn simp(self) -> (bool, Self) {
+    pub fn simp_double_not(self) -> Self {
+        match self {
+            Self::Not(a) if a.is_not() => {
+                let a = a.simp_double_not();
+                if let Self::Not(a) = a {
+                    *a
+                } else {
+                    Self::Not(Box::new(a))
+                }
+            }
+            Self::Op(a) => {
+                Self::Op(a.into_iter().map(|e| e.simp_double_not()).collect())
+            }
+            _ => self
+        }
+    }
+    pub fn simp(self, dont_simp_op: bool) -> (bool, Self) {
         //println!("Simp: {:#?}", self);
         (true, match self {
             
@@ -379,7 +418,7 @@ impl AtomTree {
             Self::Not(a) if a.is_atom_type() => {
                 Self::AtomType { atom: a.into_atom_type().unwrap().not() }
             },
-            Self::Or(v) => {
+            Self::Op(v) if !dont_simp_op => {
                 let mut new_v = HashSet::with_capacity(v.len() / 2);
 
                 let mut changed = false;
@@ -391,7 +430,7 @@ impl AtomTree {
                                 return (true, Self::AtomType { atom: AtomType::True });
                             }
                         }
-                        Self::Or(a) => {
+                        Self::Op(a) => {
                             //If we have an or inside of an or, we can just add the elements to the set
                             for a in a {
                                 new_v.insert(a);
@@ -413,7 +452,7 @@ impl AtomTree {
                 if elems.len() == 1 {
                     return (true, elems.into_iter().next().unwrap());
                 }
-                return (changed, Self::Or(elems));
+                return (changed, Self::Op(elems));
                 
             }
 

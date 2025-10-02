@@ -359,6 +359,10 @@ impl<'a> Parser<'a> {
                 let expression = self.parse_expression(token_stream)?;
                 return Some(CodeSyntax::Output { expression })
             }
+            TokenBlockType::Token(TokenType::Keyword(Keyword::Partial)) => {
+                let expression = self.parse_expression(token_stream)?;
+                return Some(CodeSyntax::Partial { expression })
+            }
             TokenBlockType::Token(TokenType::Identifier(structure)) if token_stream.peek().is_some_and(|s| s.token_type().is_double_colon()) => {
                 token_stream.next();
                 token_stream.error_if_empty(self.compilation, "identifier")?;

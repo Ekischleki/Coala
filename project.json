@@ -1,0 +1,12 @@
+{
+    "name": "coala_test_project",
+    "type": "executable",
+    "main": "main.coala",
+    "version": "0.1.0",
+    "authors": [
+        "Leah"
+    ],
+    "arch_requirements": [
+        "assert"
+    ]
+}

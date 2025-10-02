@@ -1,6 +1,6 @@
 use std::{fs::File, io::Write, path::PathBuf};
 
-use atom_tree_to_graph::AtomTreeCompiler;
+use atom_tree_to_graph::GraphColoringBackend;
 use atom_tree_translate::AtomTreeTranslator;
 use compilation::Compilation;
 use diagnostic::Diagnostic;
@@ -9,6 +9,8 @@ use parser::Parser;
 use settings::Settings;
 use string_file_reader::StringFileReader;
 use syntax::ImportSyntax;
+
+use crate::compiler::{atom_tree_to_expr::ArithmeticCircuitsBackend, compiler_backend::Backend};
 
 pub mod code_location;
 pub mod export;
@@ -30,6 +32,9 @@ mod lib_embed;
 pub mod typecheck;
 pub mod scope;
 pub mod atom_tree_to_expr;
+pub mod compiler_backend;
+pub mod pipeline_builder;
+pub mod architecture;
 
 
 
@@ -187,76 +192,25 @@ pub fn compile(settings: &Settings) {
     if settings.print_debug_logs {
         println!("{:#?}", atom_tree);
     }
-    if settings.optimize {
-        println!("Optimizing, removing links...");
 
-        while atom_tree.remove_links() {
-            if settings.print_debug_logs {
-                println!("{:#?}", atom_tree);
-            }
-        }
-        let mut i = 0;
-        println!("Optimizing, simplifying {i}. run, {} definitions and {} value actions...", atom_tree.definitions.len(), atom_tree.value_actions.len());
-        i += 1;
-        while atom_tree.simp_all(&mut compilation) {
-            println!("Optimizing, simplifying {i}. run, {} definitions and {} value actions...", atom_tree.definitions.len(), atom_tree.value_actions.len());
+    let mut backend = if settings.as_expression {
+        Backend::ArithmeticCircuitsBackend(ArithmeticCircuitsBackend::new())
+    } else {
+        Backend::GraphColoringBackend(GraphColoringBackend::new())
+    };
 
-            if settings.print_debug_logs {
-                println!("{:#?}", atom_tree);
-            }
-            while atom_tree.remove_links() {
-                if settings.print_debug_logs {
-                    println!("{:#?}", atom_tree);
-                }
-            }        
-            i += 1;
-        }
-        if settings.heavy_optimization {
-            println!("Heavy optimization enabled, inlining all...");
-            atom_tree.inline_all();
-            println!("Second pass of simplification...");
-            while atom_tree.simp_all(&mut compilation) {
-                if settings.print_debug_logs {
-                    //println!("{:#?}", atom_tree);
-                }    
-            }
-        }
-        println!("Outlining common expressions");
-        atom_tree.outline_common_expressions();
-        if settings.print_debug_logs {
-            println!("{:#?}", atom_tree);
-        }
-        println!("Next pass of simplification...");
-        while atom_tree.simp_all(&mut compilation) {
-                if settings.print_debug_logs {
-                    println!("{:#?}", atom_tree);
-                }
-                while atom_tree.remove_links() {
-                    if settings.print_debug_logs {
-                        println!("{:#?}", atom_tree);
-                    }
-                } 
-            }
-        
+    let mut pipeline = pipeline_builder::IRPipelineBuilder::new();
+    backend.make_ir_pipeline(&mut pipeline);
+    atom_tree = pipeline.run(atom_tree, &settings, &mut compilation);
+    if let Err(e) = backend.init(atom_tree) {
+        compilation.add_error(&format!("Failed to initialize backend: {e}"), None);
+        end_compilation(settings, &compilation);
     }
-    println!("Finalizing IR simplification...");
-    atom_tree.finalize_simp();
-    if settings.print_debug_logs {
-        println!("{:#?}", atom_tree);
+
+    if let Err(e) = backend.emit(PathBuf::from(&settings.output_directory)) {
+        compilation.add_error(&format!("Failed to emit: {e}"), None);
+        end_compilation(settings, &compilation);
     }
-    println!("Compiling and running IR...");
-
-    let atom_tree_compiler = AtomTreeCompiler::new(atom_tree);
-    let nodes = atom_tree_compiler.compile();
-    //println!("{:#?}:{}", nodes, nodes.len());
-    println!("Exporting compilation results...");
-
-    let mut buf_edges = String::new();
-    let mut buf_labels = String::new();
-
-    export::export_as_csv(&nodes, &mut buf_edges, &mut buf_labels);
-    File::create("./compiled_edges.csv").unwrap().write(buf_edges.as_bytes()).unwrap();
-    File::create("./compiled_labels.csv").unwrap().write(buf_labels.as_bytes()).unwrap();
-
+   
     end_compilation(settings, &compilation);
 }

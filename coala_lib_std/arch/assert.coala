@@ -1,0 +1,6 @@
+import arch::bool
+!Optional
+collection assert {
+    sub is_true(bool: a) {}
+    sub is_false(bool: a) {}
+}

@@ -79,6 +79,9 @@ pub enum CodeSyntax {
     Sub(SubCallSyntax),
     Output {
         expression: ExpressionSyntax
+    },
+    Partial {
+        expression: ExpressionSyntax
     }
 }
 

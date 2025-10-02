@@ -95,6 +95,7 @@ pub enum Keyword {
     Force,  
     Output,
     Import,
+    Partial,
     Problem,
     Solution,
     Composite,

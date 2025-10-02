@@ -26,10 +26,18 @@ fn parse_args() -> Settings {
                 settings.base_path = args.next();
             }
             "-o" => {
-                settings.output_directory = args.next();
+                match args.next() {
+                    None => {
+                        panic!("Expected argument after -o")
+                    }
+                    Some(d) => settings.output_directory = d 
+                }
             }
             "--dev" => {
                 settings.print_debug_logs = true;
+            }
+            "--expr" => {
+                settings.as_expression = true;
             }
             _ => {}
         }
@@ -42,10 +50,11 @@ fn main() {
     let settings = if args().count() == 1 {
         Settings {
             ignore_errors: false,
-            optimize: false,
+            optimize: true,
             output_code_logs: true,
             print_debug_logs: false,
-            heavy_optimization: false,
+            heavy_optimization: true,
+            as_expression: true,
             base_path: Some("./".into()),
             ..Default::default()
         }

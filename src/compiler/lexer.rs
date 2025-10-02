@@ -39,6 +39,7 @@ static KEYWORD_MAPPING: phf::Map<&'static str, &'static TokenType> = phf_map! {
 
 
     "output" => &TokenType::Keyword(Keyword::Output),
+    "partial" => &TokenType::Keyword(Keyword::Partial),
 
 
     "sub" => &TokenType::Keyword(Keyword::SubStructure),

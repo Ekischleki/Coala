@@ -1,0 +1,7 @@
+!optional
+composite Int {}
+!optional
+collection Int {
+    sub get_super_bit(Int: a, super: bit) {}
+    sub
+}

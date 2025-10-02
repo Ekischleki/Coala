@@ -1,6 +1,5 @@
 ## A collection of commutative boolean operations
 collection bool {
-
     ## And operation. Returns true if both inputs are true, otherwise false.
     sub and(bool: a, bool: b) {} = not bool::nand(a, b)
 

@@ -80,6 +80,21 @@ collection int_be {
         int_length: int_length
     }
 
+    sub from_super_seeded(sup: int, sup: int_length) {
+        let data = [super::seed(false); int_length]
+        let i = 0
+        for (i in int_length) {
+            if (super::eq(super::mod(int, 2), 1)) {
+                let j = super::sb(super::sb(int_length, i), 1)
+                data[j] = super::seed(true)
+            }
+            int = super::div(int, 2)
+        }
+    } = IntBe {
+        data: data,
+        int_length: int_length
+    }
+
     ## Mutliply two integers. The result is the product of the two integers. The length of the result is the sum of the lengths of the two input integers.
     sub mul(int: a, int: b) {
         let res_size = super::add(a.int_length, b.int_length)

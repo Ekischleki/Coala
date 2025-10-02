@@ -3,18 +3,17 @@ import std::bool
 import std::sha256
 
 #Defines as super value which can only be used as a constant to expand loop macros.
-super INT_LENGTH = 16
 
 problem {
 
     
-    sub test_sha(bool: a, bool: b) {
-
-        let r = sha256::sha256([a, b])
-        int_be::output_as_string(r[0])
-        let zero = int_be::from_super(0, 32);
-        for (i in 8) {
-            force int_be::eq(r[i], zero) => false
+    sub test_count() {
+        let INT_LENGTH = 4
+        let a = int_be::from_super_seeded(4, INT_LENGTH)
+        let b = int_be::from_super_seeded(8, INT_LENGTH) 
+        let out = int_be::add(a, b)
+        for (i in INT_LENGTH) {
+            partial out.data[super::sb(super::sb(INT_LENGTH, 1), i)]
         }
     }
 
@@ -26,3 +25,4 @@ solution {
 }
 
 
+ 

@@ -35,3 +35,20 @@ Functionality changes (Not possible with current Atom tree architecture)
     at which inputs the atom sub fails, and with which inputs, in what way internal nodes will be colored. Verifying that they actually work can be done by the compiler
     such as generating the color maps for inputs can also be done by the compiler. Perhaps some day even the wiring.
     With this one could also include new labels
+
+
+
+Architecture features are optional features an architecture may support. These features may not be emulated by other features and
+can be specified to be added to a project. The minimal project requires to support the following:
+Fixed program runtime. The project has to run in a deterministic runtime, meaning recursion and true loops are not supported, but can be emulated through unrolling.
+Fixed input: The project takes a fixed sized input, determined at compiletime through the problem solution architecture. Booleans: The project must support booleans and a functional set of boolean operations. Missing operations can be emulated by the given functional set.
+Given these features, the standart library contains a set of features that implement collections like Integers, though these can be explicitly implemented by the architecture, which may result in faster runtimes and smaller compilations.
+Overwritable features:
+    Assigns: Variable assigns may differ from architecture to architecture. Per default the compiler assumes that variable assigning doesn't exist and recreates the operations needed to create the variable from the input every time it is copied. 
+        Mutability is also not assumed. Variables are simply shadowed per default when reassigned. If there's a conditional reassign, the variable is shadowed with a selector function selecting between all branches given their condition.
+
+Optional features:
+    Asserts:
+        The application supports assertations, which is code that stops all execution (or similar) at runtime if a boolean value, given as its input, is true. The assertation may also be provided with a string representing an error, though it is optional for the architecture to actually use it.
+    
+    
