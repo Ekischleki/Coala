@@ -508,9 +508,8 @@ impl<'a> AtomTreeTranslator<'a> {
                                 t.into_iter().map(|v| v.get_as_atom_tree_if_single_or_error(self.compilation).unwrap_or_default()).collect()
                                 
                             },
-                            
                             _ => {
-                                self.compilation.add_error("Incorrect parameters for or function. Expected 2 boolean parameter.", None);
+                                self.compilation.add_error("Incorrect parameters for or function. Expected a tuple of 2 boolean parameters.", a.location.clone());
                                 return None;
                             }
                         };
